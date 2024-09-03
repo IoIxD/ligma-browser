@@ -1,12 +1,11 @@
 #include "Renderer.hpp"
+#include "GUI.h"
 #include "Instance.hpp"
 #include "glib-object.h"
 #include "gtk-raylib.h"
 #include "raylib.h"
 #include "rlgl.h"
 #include <cmath>
-#include <vector>
-
 #define LIGHTGOLD                                                              \
   (Color) { 255, 247, 130, 255 }
 
@@ -85,10 +84,6 @@ RayCollision GetRayCollisionBox(Ray ray, BoundingBox box) {
 }
 
 bool render() {
-  auto icons = GetInstance()->GetIcons();
-
-  auto size = icons->size();
-
   auto hello = "Congrats! You created your first window!";
 
   int w = GetScreenWidth();
@@ -117,54 +112,77 @@ bool render() {
   float mul = renderer->camera->position.x;
   for (float y = mul * -10; y < mul * 10; y += 2) {
     for (float x = mul * -10; x < mul * 10; x += 2) {
-      if (x == 0 && y == 0) {
-        continue;
-      }
       Color col;
 
       auto coll = GetRayCollisionBox(
           ray,
           (BoundingBox){(Vector3){floorf(x) - 0.75f, -0.75, floorf(y) - 0.75f},
                         (Vector3){floorf(x), 0, floorf(y)}});
-      if (coll.hit) {
-        col = ColorAlpha(LIGHTGOLD,
-                         1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25))));
+      // If it's an open tab
+
+      auto index = TabPosition(x, y, 0);
+      if (GetInstance()->has_tab(index)) {
+        auto tab = GetInstance()->tab_at(index);
+        if (!tab.has_value()) {
+          continue;
+        }
+        auto alpha = 1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25)));
+        auto coll = GetRayCollisionBox(
+            ray, (BoundingBox){
+                     (Vector3){floorf(x) - 0.75f, -0.75, floorf(y) - 0.75f},
+                     (Vector3){floorf(x), 0, floorf(y)}});
+
+        auto img = tab.value()->GetIcon();
+        if (img.has_value()) {
+          if (img->favicon.has_value()) {
+            if (coll.hit) {
+              col = LIGHTGOLD;
+              tab_title = img->title;
+            } else {
+              col = WHITE;
+            }
+            DrawCubeTexture(img->favicon.value(), (Vector3){x, 0, y}, 1.0, 1.0,
+                            1.0, col);
+          } else {
+            if (coll.hit) {
+              col = GOLD;
+            } else {
+              col = GRAY;
+            }
+            DrawCube((Vector3){x, 0, y}, 1.0, 1.0, 1.0, col);
+          }
+          if (coll.hit) {
+            if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+              GetInstance()->set_tab(index);
+              GetInstance()->ToggleView();
+            }
+          }
+        }
       } else {
-        col = ColorAlpha(LIGHTGRAY,
-                         1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25))));
+        if (coll.hit) {
+          col = ColorAlpha(LIGHTGOLD,
+                           1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25))));
+          if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+            GetInstance()->insert_tab(index);
+            GetInstance()->set_tab(index);
+            GetInstance()->ToggleView();
+          }
+        } else {
+          col = ColorAlpha(LIGHTGRAY,
+                           1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25))));
+        }
+        DrawCube((Vector3){x, 0, y}, 1.0, 1.0, 1.0, col);
       }
-      DrawCube((Vector3){x, 0, y}, 1.0, 1.0, 1.0, col);
-    }
-  }
-  float x = 0;
-  float y = 0;
-  for (int i = 0; i < size; i++) {
-    auto img = icons->at(i);
-    auto col = 1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25)));
-    auto coll = GetRayCollisionBox(
-        ray,
-        (BoundingBox){(Vector3){floorf(x) - 0.75f, -0.75, floorf(y) - 0.75f},
-                      (Vector3){floorf(x), 0, floorf(y)}});
-    if (img.favicon.has_value()) {
+
+      // In any case, if the coll hits, set the pointer accordingly
 
       if (coll.hit) {
-        DrawCubeTexture(img.favicon.value(), (Vector3){x, 0, y}, 1.0, 1.0, 1.0,
-                        LIGHTGOLD);
-        tab_title = img.title;
+        SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
       } else {
-        DrawCubeTexture(img.favicon.value(), (Vector3){x, 0, y}, 1.0, 1.0, 1.0,
-                        WHITE);
-      }
-    } else {
-      if (coll.hit) {
-        DrawCube((Vector3){x, 0, y}, 1.0, 1.0, 1.0, ColorAlpha(GOLD, col));
-      } else {
-        DrawCube((Vector3){x, 0, y}, 1.0, 1.0, 1.0, ColorAlpha(GRAY, col));
+        SetMouseCursor(MOUSE_CURSOR_DEFAULT);
       }
     }
-    x += 2;
   }
-
   EndMode3D();
 
   if (tab_title != "") {
