@@ -14,16 +14,24 @@
 #include <curl/urlapi.h>
 
 void back_btn(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
-  Window *inst = (Window *)userdata;
+  Window *inst = GetInstance();
   webkit_web_view_go_back(inst->current_tab()->webview);
 };
 void forward_btn(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
-  Window *inst = (Window *)userdata;
+  Window *inst = GetInstance();
   webkit_web_view_go_forward(inst->current_tab()->webview);
 };
 void tab_btn(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
   Window *inst = (Window *)userdata;
   inst->ToggleView();
+}
+void search_bar(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
+  Window *inst = GetInstance();
+  auto url = std::string(gtk_entry_get_text(GTK_ENTRY(btn)));
+  if (!url.starts_with("http://") || !url.starts_with("https://")) {
+    url = "https://" + url;
+  }
+  webkit_web_view_load_uri(inst->current_tab()->webview, url.c_str());
 }
 
 Window::Window() {
@@ -47,14 +55,22 @@ Window::Window() {
 
   tabbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   back = gtk_button_new_with_label("<");
+  gtk_widget_set_size_request(back, 32, 32);
   g_signal_connect(back, "clicked", G_CALLBACK(back_btn), this);
   gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(back), FALSE, FALSE, 0);
   forward = gtk_button_new_with_label(">");
+  gtk_widget_set_size_request(forward, 32, 32);
   g_signal_connect(forward, "clicked", G_CALLBACK(forward_btn), this);
   gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(forward), FALSE, FALSE, 0);
   tabswitch = gtk_button_new_with_label("||");
+  gtk_widget_set_size_request(tabswitch, 32, 32);
   g_signal_connect(tabswitch, "clicked", G_CALLBACK(tab_btn), this);
   gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(tabswitch), FALSE, FALSE, 0);
+
+  search = gtk_entry_new();
+  g_signal_connect(search, "activate", G_CALLBACK(search_bar), this);
+  gtk_widget_set_size_request(search, 32, 32);
+  gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(search), TRUE, TRUE, 0);
 
   box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 
@@ -113,6 +129,9 @@ void load_changed(WebKitWebView *self, WebKitLoadEvent load_event,
   Tab *tab = (Tab *)user_data;
   tab->DestroyIcon();
   tab->UpdateIcon();
+
+  GetInstance()->set_text(
+      webkit_web_view_get_uri(GetInstance()->current_tab()->webview));
 }
 Tab::Tab(const std::string &str) {
   context = webkit_web_context_new();

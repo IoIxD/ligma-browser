@@ -107,6 +107,10 @@ public:
     this->tabs->insert(std::pair(*(uint64_t *)&index, tab));
   }
 
+  void set_text(std::string str) {
+    gtk_entry_set_text(GTK_ENTRY(this->search), str.c_str());
+  }
+
   static void main_thread();
 };
 
