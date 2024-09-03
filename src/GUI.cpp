@@ -40,6 +40,8 @@ Window::Window() {
   curl = curl_easy_init();
   curlurl = curl_url();
 
+  icons = new std::vector<SiteInfo>();
+
   setup();
   SetInstance(this);
 }
@@ -92,8 +94,15 @@ void Window::ToggleView() {
     gtk_box_set_child_packing(GTK_BOX(box), GTK_WIDGET(current_tab->webview),
                               FALSE, FALSE, 0, GTK_PACK_START);
 
-    gtk_widget_set_size_request(GTK_WIDGET(render->embed), 800, 600);
-    gtk_widget_set_size_request(GTK_WIDGET(current_tab->webview), 800, 1);
+    int prev_width, prev_height;
+    GtkAllocation *alloc = g_new(GtkAllocation, 1);
+    gtk_widget_get_allocation(GTK_WIDGET(current_tab->webview), alloc);
+    prev_width = alloc->width;
+    prev_height = alloc->height;
+    gtk_widget_set_size_request(GTK_WIDGET(render->embed), prev_width,
+                                prev_height);
+    gtk_widget_set_size_request(GTK_WIDGET(current_tab->webview), prev_width,
+                                1);
 
     this->view = View::Render;
   } else {
@@ -102,8 +111,14 @@ void Window::ToggleView() {
     gtk_box_set_child_packing(GTK_BOX(box), GTK_WIDGET(render->embed), FALSE,
                               FALSE, 0, GTK_PACK_START);
 
-    gtk_widget_set_size_request(GTK_WIDGET(render->embed), 800, 1);
-    gtk_widget_set_size_request(GTK_WIDGET(current_tab->webview), 800, 600);
+    int prev_width, prev_height;
+    GtkAllocation *alloc = g_new(GtkAllocation, 1);
+    gtk_widget_get_allocation(GTK_WIDGET(render->embed), alloc);
+    prev_width = alloc->width;
+    prev_height = alloc->height;
+    gtk_widget_set_size_request(GTK_WIDGET(render->embed), prev_width, 1);
+    gtk_widget_set_size_request(GTK_WIDGET(current_tab->webview), prev_height,
+                                prev_height);
 
     this->view = View::Web;
   }
@@ -135,7 +150,17 @@ size_t write_data(void *contents, size_t size, size_t nmemb, std::string *s) {
   }
   return newLength;
 }
-bool Window::GetIcons(std::vector<SiteInfo> *icons) {
+std::vector<SiteInfo> *Window::GetIcons() {
+  if (this->image_filled) {
+    for (int i = 0; i < this->icons->size(); i++) {
+      auto icon = this->icons->at(i);
+      if (icon.favicon.has_value()) {
+        UnloadTexture(icon.favicon.value());
+      }
+    }
+    this->icons->erase(this->icons->begin(), this->icons->end());
+  }
+  // otherwise, populate the icon array!
   auto tabCount = this->tabs->size();
   for (int i = 0; i < tabCount; i++) {
     auto tab = this->tabs->at(i);
@@ -151,6 +176,8 @@ bool Window::GetIcons(std::vector<SiteInfo> *icons) {
       glGenTextures(1, &texid);
       glBindTexture(GL_TEXTURE_2D, texid);
       glRotatef(90, 0, 1, 0);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_w, tex_h, 0, GL_BGRA,
                    GL_UNSIGNED_BYTE, data);
 
@@ -168,11 +195,11 @@ bool Window::GetIcons(std::vector<SiteInfo> *icons) {
           .mipmaps = 1,
       };
 
-      icons->push_back(
-          SiteInfo(std::string(webkit_web_view_get_uri(tab->webview)),
-                   std::string(webkit_web_view_get_title(tab->webview)), tex));
+      icons->push_back(SiteInfo(
+          std::string(webkit_web_view_get_uri(tab->webview)),
+          std::string(webkit_web_view_get_title(tab->webview)), tex, texid));
     }
   }
-
-  return this->tabs->size() == icons->size();
+  this->image_filled = this->icons->size() == this->tabs->size();
+  return this->icons;
 }

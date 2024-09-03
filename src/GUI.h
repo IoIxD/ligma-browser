@@ -16,14 +16,17 @@ public:
   std::string url;
   std::string title;
   std::optional<Texture2D> favicon;
+  unsigned int textureID;
 
   SiteInfo() {
     url = "";
     title = "";
     favicon = {};
+    textureID = 0;
   }
-  SiteInfo(std::string url, std::string title, std::optional<Texture2D> favicon)
-      : url(url), title(title), favicon(favicon) {};
+  SiteInfo(std::string url, std::string title, std::optional<Texture2D> favicon,
+           unsigned int textureID)
+      : url(url), title(title), favicon(favicon), textureID(textureID) {};
 };
 
 class Tab {
@@ -55,11 +58,14 @@ class Window {
   CURLU *curlurl;
   CURLcode result;
 
+  std::vector<SiteInfo> *icons;
+  bool image_filled = false;
+
 public:
   Window();
   void setup();
   void ToggleView();
-  bool GetIcons(std::vector<SiteInfo> *icons);
+  std::vector<SiteInfo> *GetIcons();
 
   Renderer *renderer() { return this->render; };
   Tab *tab_at(int index) { return this->tabs->at(0); }

@@ -84,14 +84,10 @@ RayCollision GetRayCollisionBox(Ray ray, BoundingBox box) {
   return collision;
 }
 
-static bool image_filled = false;
-static std::vector<SiteInfo> icons;
 bool render() {
-  if (!image_filled) {
-    image_filled = GetInstance()->GetIcons(&icons);
-  }
+  auto icons = GetInstance()->GetIcons();
 
-  auto size = icons.size();
+  auto size = icons->size();
 
   auto hello = "Congrats! You created your first window!";
 
@@ -111,7 +107,8 @@ bool render() {
 
   BeginDrawing();
   ClearBackground(RAYWHITE);
-  DrawRectangleGradientV(0, 0, 800, 600, WHITE, RAYWHITE);
+  DrawRectangleGradientV(0, 0, GetScreenWidth(), GetScreenHeight(), WHITE,
+                         RAYWHITE);
 
   BeginMode3D(*renderer->camera);
 
@@ -142,7 +139,7 @@ bool render() {
   float x = 0;
   float y = 0;
   for (int i = 0; i < size; i++) {
-    auto img = icons.at(i);
+    auto img = icons->at(i);
     auto col = 1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25)));
     auto coll = GetRayCollisionBox(
         ray,
@@ -193,7 +190,7 @@ Renderer::Renderer() {
 
   printf("Renderer\n");
   embed = gtk_raylib_embed_new();
-  TraceLogLevel(LOG_WARNING);
+  SetTraceLogLevel(LOG_WARNING);
   g_signal_connect_swapped(embed, "render", G_CALLBACK(render), NULL);
   g_signal_connect_swapped(embed, "realize", G_CALLBACK(start), NULL);
 }
