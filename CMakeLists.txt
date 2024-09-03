@@ -41,7 +41,7 @@ FIND_LIBRARY(LIBSOUP_LIBRARIES
 # i don't even care anymore i fucking hate c and c++ and cmake and if this isn't where your webkitgtk is then too bad!!
 include_directories(/usr/include/webkitgtk-4.1)
 link_directories(/usr/lib/webkit2gtk-4.1)
-add_link_options(-lwebkit2gtk-4.1 -lepoxy)
+add_link_options(-lwebkit2gtk-4.1 -lepoxy -lGL)
 
 add_definitions(-Wno-incompatible-pointer-types -Wno-int-conversion)
 include_directories("include/")
@@ -74,7 +74,7 @@ add_executable(${PROJECT_NAME} ${sources} ${data}
 target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/lib )
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${GTKMM_CFLAGS_OTHER})
 target_link_directories(${PROJECT_NAME} PRIVATE ${GTKMM_LIBRARY_DIRS})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${epoxy_LIBRARIES} curl ${WEBKIT_LIBRARIES} ${LIBSOUP_LIBRARIES} ${glad_LIBRARIES} ${GLEW_LIBRARIES} ${GTK3_LIBRARIES} ${GTKMM_LIBRARIES} ${OPENGL_gl_LIBRARY} glfw ${glad_LIBRARY})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${epoxy_LIBRARIES} curl ${WEBKIT_LIBRARIES} ${LIBSOUP_LIBRARIES} ${glad_LIBRARIES} ${GLEW_LIBRARIES} ${GTK3_LIBRARIES} ${GTKMM_LIBRARIES} ${OPENGL_LIBRARIES} glfw ${glad_LIBRARY})
 
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)

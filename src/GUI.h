@@ -14,10 +14,16 @@
 class SiteInfo {
 public:
   std::string url;
-  std::optional<Image> favicon;
+  std::string title;
+  std::optional<Texture2D> favicon;
 
-  SiteInfo(std::string url, std::optional<Image> favicon)
-      : url(url), favicon(favicon) {};
+  SiteInfo() {
+    url = "";
+    title = "";
+    favicon = {};
+  }
+  SiteInfo(std::string url, std::string title, std::optional<Texture2D> favicon)
+      : url(url), title(title), favicon(favicon) {};
 };
 
 class Tab {

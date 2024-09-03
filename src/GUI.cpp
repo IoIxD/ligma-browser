@@ -1,15 +1,16 @@
 #include "GUI.h"
 #include "Instance.hpp"
 #include "Renderer.hpp"
-#include "external/stb_image.h"
+#include "cairo.h"
 #include "glib-object.h"
 #include "gtk/gtk.h"
 #include "raylib.h"
 #include "webkit/WebKitSettings.h"
+#include <GL/gl.h>
 #include <cstdio>
+#include <cstdlib>
 #include <curl/curl.h>
 #include <curl/urlapi.h>
-#include <optional>
 #include <vector>
 
 void back_btn() {
@@ -44,6 +45,7 @@ Window::Window() {
 }
 
 void Window::setup() {
+
   tabbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   back = gtk_button_new_with_label("<");
   g_signal_connect(back, "clicked", back_btn, NULL);
@@ -71,6 +73,9 @@ void Window::setup() {
   gtk_container_add(GTK_CONTAINER(win), box);
 
   gtk_widget_show_all(win);
+
+  webkit_web_context_set_favicon_database_directory(
+      webkit_web_context_get_default(), "./database");
 }
 
 void Window::main_thread() { gtk_main(); }
@@ -135,52 +140,37 @@ bool Window::GetIcons(std::vector<SiteInfo> *icons) {
   for (int i = 0; i < tabCount; i++) {
     auto tab = this->tabs->at(i);
     auto tab_icon = webkit_web_view_get_favicon(tab->webview);
-    if (tab_icon == NULL) {
-      // webkit_web_view_get_favicon seems to return null well after the favicon
-      // should be loaded. My options for getting help are going to a mailing
-      // list, ran by the GNOME devs, where they've taken more then a day to
-      // approve me to post. Or I could work around this!
+    if (tab_icon != NULL) {
+      auto image = gtk_image_new_from_surface(tab_icon);
 
-      auto url = std::string(webkit_web_view_get_uri(tab->webview));
-      url += "favicon.ico";
-
-      std::string buffer;
-
-      curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buffer);
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-
-      result = curl_easy_perform(curl);
-
-      if (result != CURLE_OK) {
-        printf("CURL Error getting favicon: %s\n", curl_easy_strerror(result));
-      }
-
-      int *size;
-      if (buffer.data() != NULL) {
-        Image image;
-        // auto loaded = LoadICO(buffer.data(), buffer.size(), &image);
-        // printf("Loaded? %d\n", loaded);
-        // if (loaded) {
-        icons->push_back(
-            SiteInfo(std::string(webkit_web_view_get_uri(tab->webview)), {}));
-        //}
-      }
-    } else {
       int tex_w = cairo_image_surface_get_width(tab_icon);
       int tex_h = cairo_image_surface_get_height(tab_icon);
       unsigned char *data = cairo_image_surface_get_data(tab_icon);
 
-      auto format_raw = cairo_image_surface_get_format(tab_icon);
+      unsigned int texid;
+      glGenTextures(1, &texid);
+      glBindTexture(GL_TEXTURE_2D, texid);
+      glRotatef(90, 0, 1, 0);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_w, tex_h, 0, GL_BGRA,
+                   GL_UNSIGNED_BYTE, data);
 
-      Image img = {.data = data,
-                   .width = tex_w,
-                   .height = tex_h,
-                   .mipmaps = 1,
-                   .format = PIXELFORMAT_UNCOMPRESSED_R32G32B32A32};
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+      glBindTexture(GL_TEXTURE_2D, 0);
+
+      Texture tex = (Texture){
+          .id = texid,
+          .width = tex_w,
+          .height = tex_h,
+          .mipmaps = 1,
+      };
 
       icons->push_back(
-          SiteInfo(std::string(webkit_web_view_get_uri(tab->webview)), img));
+          SiteInfo(std::string(webkit_web_view_get_uri(tab->webview)),
+                   std::string(webkit_web_view_get_title(tab->webview)), tex));
     }
   }
 
