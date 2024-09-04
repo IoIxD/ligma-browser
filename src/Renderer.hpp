@@ -4,7 +4,6 @@
 #include "gtk/gtk.h"
 #include "raylib.h"
 class Renderer {
-
 public:
   Camera3D *camera;
   GtkWidget *embed;

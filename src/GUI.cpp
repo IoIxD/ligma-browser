@@ -23,15 +23,40 @@ void forward_btn(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
 };
 void tab_btn(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
   Window *inst = (Window *)userdata;
-  inst->ToggleView();
+  inst->toggle_view();
 }
 void search_bar(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
   Window *inst = GetInstance();
   auto url = std::string(gtk_entry_get_text(GTK_ENTRY(btn)));
-  if (!url.starts_with("http://") || !url.starts_with("https://")) {
+  if (!url.starts_with("http://") && !url.starts_with("https://")) {
     url = "https://" + url;
   }
   webkit_web_view_load_uri(inst->current_tab()->webview, url.c_str());
+}
+
+void refresh_btn(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
+  Window *inst = GetInstance();
+  auto webview = inst->current_tab()->webview;
+  webkit_web_view_load_uri(webview, webkit_web_view_get_uri(webview));
+}
+bool keypress(GtkWidget *widget, GdkEventKey *event, gpointer data) {
+  GdkWindow *window = gtk_widget_get_window(widget);
+
+  GdkWindowState state = gdk_window_get_state(GDK_WINDOW(window));
+
+  switch (event->keyval) {
+  case GDK_KEY_F11:
+    if (state & GDK_WINDOW_STATE_FULLSCREEN) {
+      gtk_window_unfullscreen(GTK_WINDOW(widget));
+    } else {
+      gtk_window_fullscreen(GTK_WINDOW(widget));
+    }
+
+    break;
+  case GDK_KEY_Escape:
+    break;
+  }
+  return false;
 }
 
 Window::Window() {
@@ -42,7 +67,9 @@ Window::Window() {
   gtk_window_set_title(GTK_WINDOW(win), "");
   g_signal_connect(win, "destroy", gtk_main_quit, NULL);
 
-  tabs = new std::map<uint64_t, Tab *>();
+  g_signal_connect(win, "key_release_event", G_CALLBACK(keypress), NULL);
+
+  tabs = new std::map<std::string, Tab *>();
   insert_tab(TabPosition(0, 0, 0));
   set_tab(TabPosition(0, 0, 0));
 
@@ -51,26 +78,42 @@ Window::Window() {
   curl = curl_easy_init();
   curlurl = curl_url();
 
-  icons = new std::map<uint64_t, std::optional<SiteInfo>>();
+  icons = new std::map<std::string, std::optional<SiteInfo>>();
 
   tabbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  back = gtk_button_new_with_label("<");
+
+  back = gtk_button_new_with_label(NULL);
   gtk_widget_set_size_request(back, 32, 32);
   g_signal_connect(back, "clicked", G_CALLBACK(back_btn), this);
+  back_img = gtk_image_new_from_file("./assets/left.png");
+  gtk_button_set_image(GTK_BUTTON(back), back_img);
   gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(back), FALSE, FALSE, 0);
-  forward = gtk_button_new_with_label(">");
+
+  forward = gtk_button_new_with_label(NULL);
   gtk_widget_set_size_request(forward, 32, 32);
   g_signal_connect(forward, "clicked", G_CALLBACK(forward_btn), this);
+  forward_img = gtk_image_new_from_file("./assets/right.png");
+  gtk_button_set_image(GTK_BUTTON(forward), forward_img);
   gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(forward), FALSE, FALSE, 0);
-  tabswitch = gtk_button_new_with_label("||");
+
+  tabswitch = gtk_button_new_with_label(NULL);
   gtk_widget_set_size_request(tabswitch, 32, 32);
   g_signal_connect(tabswitch, "clicked", G_CALLBACK(tab_btn), this);
+  tabs_img = gtk_image_new_from_file("./assets/tabs.png");
+  gtk_button_set_image(GTK_BUTTON(tabswitch), tabs_img);
   gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(tabswitch), FALSE, FALSE, 0);
 
   search = gtk_entry_new();
   g_signal_connect(search, "activate", G_CALLBACK(search_bar), this);
   gtk_widget_set_size_request(search, 32, 32);
   gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(search), TRUE, TRUE, 0);
+
+  refresh = gtk_button_new_with_label(NULL);
+  gtk_widget_set_size_request(refresh, 32, 32);
+  g_signal_connect(refresh, "clicked", G_CALLBACK(refresh_btn), this);
+  refresh_img = gtk_image_new_from_file("./assets/refresh.png");
+  gtk_button_set_image(GTK_BUTTON(refresh), refresh_img);
+  gtk_box_pack_start(GTK_BOX(tabbar), GTK_WIDGET(refresh), FALSE, FALSE, 0);
 
   box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 
@@ -97,7 +140,19 @@ void Window::setup() {}
 
 void Window::main_thread() { gtk_main(); }
 
-void Window::ToggleView() {
+void Window::update_buttons() {
+  GetInstance()->set_text(
+      webkit_web_view_get_uri(GetInstance()->current_tab()->webview));
+
+  if (GetInstance()->gui_enabled) {
+    auto b = webkit_web_view_can_go_back(GetInstance()->current_tab()->webview);
+    auto f =
+        webkit_web_view_can_go_forward(GetInstance()->current_tab()->webview);
+    GetInstance()->set_btn_status(b, f);
+  }
+}
+
+void Window::toggle_view() {
   int webwidth, webheight, renwidth, renheight;
   gtk_widget_get_size_request(GTK_WIDGET(current_tab()->webview), &webwidth,
                               &webheight);
@@ -112,6 +167,8 @@ void Window::ToggleView() {
                               FALSE, FALSE, 0, GTK_PACK_START);
 
     this->view = View::Render;
+    this->disable_gui();
+    this->renderer_active = true;
   } else {
     gtk_widget_hide(GTK_WIDGET(render->embed));
     gtk_widget_show(GTK_WIDGET(current_tab()->webview));
@@ -120,7 +177,11 @@ void Window::ToggleView() {
     gtk_box_set_child_packing(GTK_BOX(box), GTK_WIDGET(current_tab()->webview),
                               TRUE, TRUE, 0, GTK_PACK_START);
 
+    update_buttons();
+    this->enable_gui();
+
     this->view = View::Web;
+    this->renderer_active = false;
   }
 }
 
@@ -130,8 +191,7 @@ void load_changed(WebKitWebView *self, WebKitLoadEvent load_event,
   tab->DestroyIcon();
   tab->UpdateIcon();
 
-  GetInstance()->set_text(
-      webkit_web_view_get_uri(GetInstance()->current_tab()->webview));
+  GetInstance()->update_buttons();
 }
 Tab::Tab(const std::string &str) {
   context = webkit_web_context_new();
@@ -144,14 +204,14 @@ Tab::Tab(const std::string &str) {
 
   webview = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(context));
   g_signal_connect(webview, "load-changed", G_CALLBACK(load_changed), this);
-  g_signal_connect(webview, "load-finished", G_CALLBACK(load_changed), this);
+  g_signal_connect(webview, "document-load-finished", G_CALLBACK(load_changed),
+                   this);
 
   const char *load_url = str.c_str();
   webkit_web_view_load_uri(webview, load_url);
 
   if (GetInstance() != NULL) {
     if (GetInstance()->box != NULL) {
-      printf("addig\n");
       gtk_box_pack_start(GTK_BOX(GetInstance()->box), GTK_WIDGET(webview), TRUE,
                          TRUE, 0);
       gtk_widget_set_size_request(GTK_WIDGET(webview), 800, 1);
@@ -159,7 +219,7 @@ Tab::Tab(const std::string &str) {
   }
 }
 
-std::map<uint64_t, std::optional<SiteInfo>> *Window::GetIcons() {
+std::map<std::string, std::optional<SiteInfo>> *Window::GetIcons() {
   if (this->image_filled) {
     for (int i = 0; i < this->icons->size(); i++) {
       for (auto tab = this->icons->begin(); tab != this->icons->end(); tab++) {
@@ -176,7 +236,7 @@ std::map<uint64_t, std::optional<SiteInfo>> *Window::GetIcons() {
   auto tabCount = this->tabs->size();
   for (auto tab = this->tabs->begin(); tab != this->tabs->end(); tab++) {
     this->icons->insert(
-        std::pair(*(uint64_t *)&tab->first, tab->second->GetIcon()));
+        std::pair(*(std::string *)&tab->first, tab->second->GetIcon()));
     auto tab_icon = webkit_web_view_get_favicon(tab->second->webview);
   }
   this->image_filled = this->icons->size() == this->tabs->size();

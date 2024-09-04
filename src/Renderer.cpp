@@ -6,22 +6,34 @@
 #include "raylib.h"
 #include "rlgl.h"
 #include <cmath>
+#include <format>
 #define LIGHTGOLD                                                              \
   (Color) { 255, 247, 130, 255 }
 
+static float dimension;
+static int time_since_scroll = 0;
+
 bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
-  auto hello = "Congrats! You created your first window!";
-
-  int w = GetScreenWidth();
-  int h = GetScreenHeight();
-  int w_text = MeasureText(hello, 20); // width text
-
   auto renderer = GetInstance()->renderer();
+  if (!GetInstance()->renderer_active) {
+    return false;
+  }
+
   auto v = -GetMouseWheelMove();
-  if (renderer->camera->position.x + v >= 1) {
-    renderer->camera->position.x += v;
-    renderer->camera->position.y += v;
-    renderer->camera->position.z += v;
+  if (IsKeyDown(KEY_LEFT_SHIFT)) {
+    dimension -= v;
+    if (time_since_scroll <= 32) {
+      time_since_scroll += 1;
+    }
+  } else {
+    if (renderer->camera->position.x + v >= 1) {
+      renderer->camera->position.x += v;
+      renderer->camera->position.y += v;
+      renderer->camera->position.z += v;
+    }
+    if (time_since_scroll > 0) {
+      time_since_scroll -= 1;
+    }
   }
 
   std::string tab_title = "";
@@ -46,8 +58,9 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
                         (Vector3){floorf(x), 0, floorf(y)}});
       // If it's an open tab
 
-      auto index = TabPosition(x, y, 0);
+      auto index = TabPosition(x, y, dimension);
       if (GetInstance()->has_tab(index)) {
+
         auto tab = GetInstance()->tab_at(index);
         if (!tab.has_value()) {
           continue;
@@ -80,7 +93,14 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
           if (coll.hit) {
             if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
               GetInstance()->set_tab(index);
-              GetInstance()->ToggleView();
+              GetInstance()->toggle_view();
+              GetInstance()->update_buttons();
+            }
+            if (IsMouseButtonReleased(MOUSE_RIGHT_BUTTON)) {
+              GetInstance()->remove_tab(index);
+              if (GetInstance()->is_current(index)) {
+                GetInstance()->disable_gui();
+              }
             }
           }
         }
@@ -91,7 +111,8 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
           if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
             GetInstance()->insert_tab(index);
             GetInstance()->set_tab(index);
-            GetInstance()->ToggleView();
+            GetInstance()->toggle_view();
+            GetInstance()->update_buttons();
           }
         } else {
           col = ColorAlpha(LIGHTGRAY,
@@ -115,6 +136,15 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
     auto dim = MeasureText(tab_title.c_str(), 20);
     DrawRectangle(mousePos.x - 2, mousePos.y - 2, dim + 30, 20 + 2, LIGHTGOLD);
     DrawText(tab_title.c_str(), mousePos.x + 19, mousePos.y - 1, 20, BLACK);
+  }
+  if (time_since_scroll != 0) {
+    int y_by = time_since_scroll;
+    if (y_by >= 8) {
+      y_by = 8;
+    }
+    auto num = std::format("{}", dimension);
+    DrawText(num.c_str(), GetScreenWidth() / 2 - MeasureText(num.c_str(), 32),
+             GetScreenHeight() - (y_by * 8), 32, GRAY);
   }
   EndDrawing();
   return true;
