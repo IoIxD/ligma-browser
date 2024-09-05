@@ -7,6 +7,7 @@
 #include "rlgl.h"
 #include <cmath>
 #include <format>
+
 #define LIGHTGOLD                                                              \
   (Color) { 255, 247, 130, 255 }
 
@@ -36,6 +37,17 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
     }
   }
 
+  /*if (IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) {
+    auto v = GetMousePosition();
+    auto dx = (v.x - (GetScreenWidth() / 2.0)) / 1000.0;
+    auto dy = (v.y - (GetScreenHeight() / 2.0)) / 2000.0;
+    renderer->camera->position.x += dy;
+    renderer->camera->target.x += dy;
+    renderer->camera->position.z -= dx;
+    renderer->camera->target.z -= dx;
+    renderer->camera->position.x += (dx / 100.0);
+    renderer->camera->target.x += (dx / 100.0);
+  }*/
   std::string tab_title = "";
 
   BeginDrawing();
@@ -48,8 +60,8 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
   Ray ray = GetMouseRay(GetMousePosition(), *renderer->camera);
 
   float mul = renderer->camera->position.x;
-  for (float y = mul * -10; y < mul * 10; y += 2) {
-    for (float x = mul * -10; x < mul * 10; x += 2) {
+  for (float y = -mul * 10; y < mul * 10; y += 2) {
+    for (float x = -mul * 10; x < mul * 10; x += 2) {
       Color col;
 
       auto coll = GetRayCollisionBox(
@@ -58,14 +70,18 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
                         (Vector3){floorf(x), 0, floorf(y)}});
       // If it's an open tab
 
-      auto index = TabPosition(x, y, dimension);
+      auto index = TabPosition(floorf(x), floorf(y), dimension);
+      auto alpha = 1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25)));
+      if (alpha <= 0.25) {
+        continue;
+      }
       if (GetInstance()->has_tab(index)) {
 
         auto tab = GetInstance()->tab_at(index);
         if (!tab.has_value()) {
           continue;
         }
-        auto alpha = 1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25)));
+
         auto coll = GetRayCollisionBox(
             ray, (BoundingBox){
                      (Vector3){floorf(x) - 0.75f, -0.75, floorf(y) - 0.75f},
@@ -106,8 +122,7 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
         }
       } else {
         if (coll.hit) {
-          col = ColorAlpha(LIGHTGOLD,
-                           1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25))));
+          col = ColorAlpha(LIGHTGOLD, alpha);
           if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
             GetInstance()->insert_tab(index);
             GetInstance()->set_tab(index);
@@ -115,8 +130,7 @@ bool render(GtkWidget *btn, GdkEventButton *event, gpointer userdata) {
             GetInstance()->update_buttons();
           }
         } else {
-          col = ColorAlpha(LIGHTGRAY,
-                           1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25))));
+          col = ColorAlpha(LIGHTGRAY, alpha);
         }
         DrawCube((Vector3){x, 0, y}, 1.0, 1.0, 1.0, col);
       }
