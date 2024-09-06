@@ -1,84 +1,116 @@
-cmake_minimum_required(VERSION 3.0)
-project(ligma-browser LANGUAGES C CXX)
+# Copyright (c) 2016 The Chromium Embedded Framework Authors. All rights
+# reserved. Use of this source code is governed by a BSD-style license that
+# can be found in the LICENSE file.
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# See the included README.md file for usage instructions.
 
-file(GLOB_RECURSE sources   
-    src/**/**/**/*.c src/**/**/**/*.h src/**/**/**/*.cpp src/**/**/**/*.hpp 
-    src/**/**/*.c src/**/**/*.h src/**/**/*.cpp src/**/**/*.hpp 
-    src/**/*.c src/**/*.h src/**/*.cpp src/**/*.hpp 
-    src/*.c src/*.h src/*.cpp src/*.hpp
-)
-file(GLOB_RECURSE data resources/*)
+# For VS2022 and Xcode 12+ support.
+cmake_minimum_required(VERSION 3.21)
+
+# Only generate Debug and Release configuration types.
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+set(CMAKE_EXPORT_COMPILE_COMMANDS True)
+set(CXX_STANDARD 20)
+
+# Project name.
+project(cef)
+
+# Use folders in the resulting project files.
+set_property(GLOBAL PROPERTY OS_FOLDERS ON)
+
+# Specify the CEF distribution version.
+set(CEF_VERSION "127.3.1+g6cbb30e+chromium-127.0.6533.100")
+
+# Determine the platform.
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+  if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "arm")
+    set(CEF_PLATFORM "linuxarm")
+  elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "arm64")
+    set(CEF_PLATFORM "linuxarm64")
+  elseif(CMAKE_SIZEOF_VOID_P MATCHES 8)
+    set(CEF_PLATFORM "linux64")
+  else()
+    message(FATAL_ERROR "Linux x86 32-bit builds are discontinued.")
+  endif()
+elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+  if("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "ARM64")
+    set(CEF_PLATFORM "windowsarm64")
+  elseif(CMAKE_SIZEOF_VOID_P MATCHES 8)
+    set(CEF_PLATFORM "windows64")
+  else()
+    set(CEF_PLATFORM "windows32")
+  endif()
+endif()
+
+# Add this project's cmake/ directory to the module path.
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Download and extract the CEF binary distribution (executes DownloadCEF.cmake).
+include(DownloadCEF)
+DownloadCEF("${CEF_PLATFORM}" "${CEF_VERSION}" "${CMAKE_SOURCE_DIR}/third_party/cef")
+
+# Add the CEF binary distribution's cmake/ directory to the module path.
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CEF_ROOT}/cmake")
+
+# Load the CEF configuration (executes FindCEF.cmake).
+find_package(CEF REQUIRED)
+
+#
+# Target configuration.
+#
+
+# Include the libcef_dll_wrapper target (executes libcef_dll/CMakeLists.txt).
+add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
+
+# Allow includes relative to the current source directory.
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CEF_ROOT})
+include_directories(${CEF_ROOT}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 
-add_compile_definitions(PLATFORM_EMBED)
-add_compile_definitions(GRAPHICS_API_OPENGL_33)
-add_compile_definitions(BUILD_LIBTYPE_SHARED)
-add_compile_definitions(EPOXY)
+find_package(glm REQUIRED)
+find_package(GLEW REQUIRED)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK3 REQUIRED QUIET gtk+-3.0 gtkmm-3.0)
-pkg_check_modules(glfw3 REQUIRED QUIET )
-pkg_check_modules(glew REQUIRED QUIET )
-pkg_check_modules(glad REQUIRED QUIET )
-pkg_check_modules(curl REQUIRED QUIET )
-PKG_CHECK_MODULES(PC_LIBSOUP REQUIRED QUIET libsoup-3.0)
-
-FIND_PATH(LIBSOUP_INCLUDE_DIRS
-    NAMES libsoup/soup.h
-    HINTS ${PC_LIBSOUP_INCLUDEDIR}
-          ${PC_LIBSOUP_INCLUDE_DIRS}
-    PATH_SUFFIXES libsoup-3.0
-)
-
-FIND_LIBRARY(LIBSOUP_LIBRARIES
-    NAMES soup-3.0
-    HINTS ${PC_LIBSOUP_LIBDIR}
-          ${PC_LIBSOUP_LIBRARY_DIRS}
-)
-
-# i don't even care anymore i fucking hate c and c++ and cmake and if this isn't where your webkitgtk is then too bad!!
-include_directories(/usr/include/webkitgtk-4.1)
-link_directories(/usr/lib/webkit2gtk-4.1)
-add_link_options(-lwebkit2gtk-4.1 -lepoxy -lGL)
-
-add_definitions(-Wno-incompatible-pointer-types -Wno-int-conversion)
-include_directories("include/")
-
-message("Found OpenGL " ${OPENGL_VERSION_STRING})
-message("Found GTK3 " ${GTK3_VERSION_STRING})
-message("Found GLFW " ${GLFW_VERSION_STRING})
-message("Found GLEW " ${GLEW_VERSION_STRING})
-message("Found glad " ${glad_VERSION_STRING})
-message("Found libsoup " ${LIBSOUP_VERSION_STRING})
-message("Found Webkit " ${WEBKIT_VERSION_STRING})
-message("Found Curl " ${CURL_VERSION_STRING})
-message("Found epoxy " ${epoxy_VERSION_STRING})
-
-include_directories(${OPENGL_INCLUDE_DIR})
-include_directories(${GTKMM_INCLUDE_DIRS})
-include_directories(${GTK3_INCLUDE_DIRS})
-include_directories(${GTK_INCLUDE_DIRS})
-include_directories(${GLFW_INCLUDE_DIRS})
+include_directories(${GLM_INCLUDE_DIRS})
+link_directories(${GLM_LIBRARY_DIRS})
 include_directories(${GLEW_INCLUDE_DIRS})
-include_directories(${glad_INCLUDE_DIRS})
-include_directories(${LIBSOUP_INCLUDE_DIRS})
-include_directories(${WEBKIT_INCLUDE_DIRS})
-include_directories(${CURL_INCLUDE_DIRS})
-include_directories(${epoxy_INCLUDE_DIRS})
 
-add_executable(${PROJECT_NAME} ${sources} ${data}
-        src/GUI.cpp
-        src/GUI.h)
-target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/lib )
-target_compile_definitions(${PROJECT_NAME} PRIVATE ${GTKMM_CFLAGS_OTHER})
-target_link_directories(${PROJECT_NAME} PRIVATE ${GTKMM_LIBRARY_DIRS})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${epoxy_LIBRARIES} curl ${WEBKIT_LIBRARIES} ${LIBSOUP_LIBRARIES} ${glad_LIBRARIES} ${GLEW_LIBRARIES} ${GTK3_LIBRARIES} ${GTKMM_LIBRARIES} ${OPENGL_LIBRARIES} glfw ${glad_LIBRARY})
+# Main executable sources.
+file(GLOB_RECURSE sources
+  src/*.cpp 
+  src/*.hpp
+)
+
+file(GLOB CHROME_RESOURCES
+  ${CEF_ROOT}/Resources/*
+)
 
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
+file(COPY ${CHROME_RESOURCES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CEF_ROOT}/Resources/locales DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/locales)
+add_compile_options(-DCHECK_OPENGL -DCEF_USE_SANDBOX -DNDEBUG -D_FILE_OFFSET_BITS=64 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_OPTIONS -ffunction-sections)
+file(COPY ${CHROME_RESOURCES} DESTINATION ${CEF_ROOT}/${CMAKE_BUILD_TYPE}/)
+file(COPY ${CEF_ROOT}/Resources/locales DESTINATION ${CEF_ROOT}/${CMAKE_BUILD_TYPE}/locales)
 
-file(COPY ${data} DESTINATION resources)
+file(COPY ${CMAKE_SOURCE_DIR}/src/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR}) 
+include(FetchContent)
+Set(FETCHCONTENT_QUIET FALSE)
+FetchContent_Declare(
+    raylib
+    GIT_REPOSITORY "https://github.com/raysan5/raylib.git"
+    GIT_TAG "5.0"
+    GIT_PROGRESS TRUE
+)
+FetchContent_MakeAvailable(raylib)
+
+ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+
+# Target executable names.
+set(EXAMPLE_TARGET "ligma-browser")
+add_executable(${EXAMPLE_TARGET} ${sources})
+target_link_libraries(${EXAMPLE_TARGET} libcef_lib libcef_dll_wrapper raylib)
+target_link_libraries(${EXAMPLE_TARGET} ${GLEW_LIBRARIES})
+
+PRINT_CEF_CONFIG()
