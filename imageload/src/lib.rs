@@ -85,3 +85,8 @@ pub extern "C" fn internal__DynamicImage__Free(this: *mut __DynamicImage__) {
     let og = unsafe { Box::from_raw(this.as_mut().unwrap().to_real()) };
     std::mem::forget(og);
 }
+
+#[no_mangle]
+pub extern "C" fn main() -> i32 {
+    return 0;
+}

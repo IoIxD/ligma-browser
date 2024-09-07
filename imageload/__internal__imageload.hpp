@@ -38,4 +38,6 @@ bool internal__DynamicImage__InBounds(struct __DynamicImage__ *this_, uint32_t x
 
 void internal__DynamicImage__Free(struct __DynamicImage__ *this_);
 
+int32_t main(void);
+
 #endif  /* __INTERNAL_IMAGE_LOAD_H */
