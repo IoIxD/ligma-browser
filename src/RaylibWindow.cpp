@@ -1,11 +1,19 @@
-#include "Window.hpp"
-#include <raylib.h>
+#include "RaylibWindow.hpp"
+#include <stdio.h>
 #include <format>
+#include <imageload.hpp>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include "BrowserView.hpp"
 #include "CEFGLWindow.hpp"
 #include "GLFW/glfw3.h"
 #include "JSKeyCodes.hpp"
+#include "imageload/imageload.hpp"
 #include "internal/cef_types.h"
 #include "internal/cef_types_wrappers.h"
+#include "raylib.h"
 #include "rlgl.h"
 
 #define LIGHTGOLD      \
@@ -55,7 +63,7 @@ static void InitBrowser(int argc, char** argv) {
   }
 }
 
-Window::Window(int argc, char** argv) {
+RaylibWindow::RaylibWindow(int argc, char** argv) {
   KeycodeSetup();
   InitBrowser(argc, argv);
 
@@ -65,9 +73,6 @@ Window::Window(int argc, char** argv) {
   InitWindow(width, height, "Ligma Browser");
   SetWindowState(FLAG_WINDOW_RESIZABLE);
   SetTargetFPS(60);
-
-  current_tab = window->createBrowser("https://google.com").lock();
-  current_tab->reshape(GetScreenWidth(), GetScreenHeight());
 
   v = GetMousePosition();
 
@@ -80,9 +85,12 @@ Window::Window(int argc, char** argv) {
       .fovy = 90,
       .projection = CAMERA_PERSPECTIVE,
   };
+
+  insertTab(TabPosition(0, 0, 0));
+  setTab(TabPosition(0, 0, 0));
 }
 
-void Window::resizeTranslation() {
+void RaylibWindow::resizeTranslation() {
   // WINDOW SIZE TRANSLATION
   if (GetScreenWidth() != width || GetScreenHeight() != height) {
     current_tab->reshape(GetScreenWidth(), GetScreenHeight());
@@ -90,7 +98,10 @@ void Window::resizeTranslation() {
     height = GetScreenHeight();
   }
 };
-void Window::keyTranslation() {
+void RaylibWindow::keyTranslation() {
+  if (IsKeyReleased(KEY_F1)) {
+    this->toggleView();
+  }
   // KEYBOARD TRANSLATION
   for (int i = 0; i < 339; i++) {
     if (IsKeyPressed(i) || IsKeyPressedRepeat(i) || IsKeyReleased(i)) {
@@ -134,7 +145,7 @@ void Window::keyTranslation() {
   }
 }
 
-void Window::mouseTranslation() {
+void RaylibWindow::mouseTranslation() {
   auto nv = GetMousePosition();
   if (v.x != nv.x || nv.y != nv.y) {
     v = nv;
@@ -176,17 +187,18 @@ void Window::mouseTranslation() {
   }
 }
 
-void Window::render() {
+void RaylibWindow::render() {
   switch (state) {
     case State::Browser:
       renderBrowserWindow();
       break;
     case State::Tabs:
+      renderTabs();
       break;
   }
 }
 
-void Window::renderBrowserWindow() {
+void RaylibWindow::renderBrowserWindow() {
   // RENDERING
   BeginDrawing();
 
@@ -206,7 +218,7 @@ void Window::renderBrowserWindow() {
   EndDrawing();
 }
 
-void Window::renderTabs() {
+void RaylibWindow::renderTabs() {
   auto v = -GetMouseWheelMove();
   if (IsKeyDown(KEY_LEFT_SHIFT)) {
     dimension -= v;
@@ -247,7 +259,7 @@ void Window::renderTabs() {
       // If it's an open tab
 
       auto index = TabPosition(floorf(x), floorf(y), dimension);
-      auto alpha = 1.0 - (abs(y / (mul + 25)) + abs(x / (mul + 25)));
+      auto alpha = 1.0 - (std::abs(y / (mul + 25)) + std::abs(x / (mul + 25)));
       if (alpha <= 0.25) {
         continue;
       }
@@ -335,4 +347,67 @@ void Window::renderTabs() {
              GetScreenHeight() - (y_by * 8), 32, GRAY);
   }
   EndDrawing();
+}
+
+void RaylibWindow::insertTab(TabPosition index) {
+  auto tab = window->createBrowser("https://google.com");
+  tab.lock()->reshape(width, height);
+
+  this->tabs.insert(std::pair<std::string, std::shared_ptr<BrowserView>>(
+      this->hashIndex(index), tab));
+}
+
+void RaylibWindow::setTab(TabPosition index) {
+  current_tab = this->tabs.at(this->hashIndex(index));
+}
+
+void RaylibWindow::removeTab(TabPosition index) {
+  this->tabs.erase(this->hashIndex(index));
+}
+
+bool RaylibWindow::hasTab(TabPosition index) {
+  return this->tabs.contains(this->hashIndex(index));
+}
+
+bool RaylibWindow::isCurrent(TabPosition index) {
+  return current_tab == this->tabs.at(this->hashIndex(index));
+}
+
+std::optional<TabInfo> RaylibWindow::tabAt(TabPosition index) {
+  auto info = TabInfo(this->tabs.at(this->hashIndex(index)));
+  return info;
+}
+
+void RaylibWindow::disableGUI() {};
+
+void RaylibWindow::toggleView() {
+  if (this->state == State::Browser) {
+    state = State::Tabs;
+  } else {
+    state = State::Browser;
+  }
+};
+
+void RaylibWindow::updateButtons() {};
+
+std::optional<Texture2D> TabInfo::GetIcon() {
+  printf("getting icon\n");
+  if (this->texture.has_value()) {
+    return this->texture.value();
+  } else {
+    auto view = this->view;
+    auto downloadedFavicon = view->m_display_handler->downloadedFavicon;
+    auto img = DynamicImage(downloadedFavicon);
+    return {};
+    /*auto img = LoadICO(downloadedFavicon.data(), downloadedFavicon.size(),
+                       &frameCount);
+    if (img == NULL) {
+      return {};
+    } else {
+      SetWindowIcon(img[0]);
+      printf("loading texture\n");
+      this->texture = LoadTextureFromImage(img[0]);
+      return this->texture.value();
+    }*/
+  }
 }

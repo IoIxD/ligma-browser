@@ -1,3 +1,7 @@
+#ifndef __RAYLIB_WINDOW_HPP
+#define __RAYLIB_WINDOW_HPP
+
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -14,16 +18,20 @@ class TabPosition {
 };
 
 class TabInfo {
-  BrowserView* view;
+  std::shared_ptr<BrowserView> view;
+  std::optional<Texture2D> texture;
 
  public:
-  TabInfo(BrowserView* view) : view(view) {};
+  TabInfo(std::shared_ptr<BrowserView> view) : view(view) {};
   std::optional<Texture2D> GetIcon();
   std::string title;
+
+  friend class RaylibWindow;
 };
 
-class Window {
+class RaylibWindow {
   CEFGLWindow* window;
+  std::map<std::string, std::shared_ptr<BrowserView>> tabs;
   std::shared_ptr<BrowserView> current_tab;
   Vector2 v;
   int width = 800;
@@ -43,20 +51,26 @@ class Window {
 
   State state;
 
+  std::string hashIndex(TabPosition index) {
+    return std::format("{}{}{}", index.x, index.y, index.z);
+  }
+
  public:
-  Window(int argc, char** argv);
+  RaylibWindow(int argc, char** argv);
   void keyTranslation();
   void mouseTranslation();
   void resizeTranslation();
   void render();
 
-  bool hasTab(TabPosition index);
   std::optional<TabInfo> tabAt(TabPosition index);
   void insertTab(TabPosition index);
   void setTab(TabPosition index);
   void removeTab(TabPosition index);
+  bool hasTab(TabPosition index);
   bool isCurrent(TabPosition index);
   void disableGUI();
   void toggleView();
   void updateButtons();
 };
+
+#endif

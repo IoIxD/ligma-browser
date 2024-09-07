@@ -10,10 +10,11 @@ cmake_minimum_required(VERSION 3.21)
 # Only generate Debug and Release configuration types.
 set(CMAKE_CONFIGURATION_TYPES Debug Release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS True)
-set(CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # Project name.
-project(cef)
+project(ligma-browser)
 
 # Use folders in the resulting project files.
 set_property(GLOBAL PROPERTY OS_FOLDERS ON)
@@ -55,6 +56,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CEF_ROOT}/cmake")
 # Load the CEF configuration (executes FindCEF.cmake).
 find_package(CEF REQUIRED)
 
+find_package(CURL REQUIRED) 
+
 #
 # Target configuration.
 #
@@ -75,11 +78,14 @@ find_package(GLEW REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 link_directories(${GLM_LIBRARY_DIRS})
 include_directories(${GLEW_INCLUDE_DIRS})
+include_directories(${CURL_INCLUDE_DIR})
 
 # Main executable sources.
 file(GLOB_RECURSE sources
   src/*.cpp 
   src/*.hpp
+  src/*.c
+  src/*.h
 )
 
 file(GLOB CHROME_RESOURCES
@@ -107,10 +113,25 @@ FetchContent_MakeAvailable(raylib)
 
 ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
 
+# We use Rust's image crate because it does what C++ can't, somehow.
+FetchContent_Declare(
+    Corrosion
+    GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+    GIT_TAG v0.5 # Optionally specify a commit hash, version tag or branch here
+)
+FetchContent_MakeAvailable(Corrosion)
+
+# Import targets defined in a package or workspace manifest `Cargo.toml` file
+corrosion_import_crate(MANIFEST_PATH imageload/Cargo.toml)
+
+include_directories(imageload)
+FILE(GLOB sources imageload/*.cpp)
+
 # Target executable names.
-set(EXAMPLE_TARGET "ligma-browser")
-add_executable(${EXAMPLE_TARGET} ${sources})
-target_link_libraries(${EXAMPLE_TARGET} libcef_lib libcef_dll_wrapper raylib)
-target_link_libraries(${EXAMPLE_TARGET} ${GLEW_LIBRARIES})
+add_executable(${PROJECT_NAME} ${sources})
+target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(${PROJECT_NAME} PUBLIC libcef_lib libcef_dll_wrapper raylib)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${GLEW_LIBRARIES} ${CURL_LIBRARIES} )
+target_link_libraries(${PROJECT_NAME} PUBLIC imageload)
 
 PRINT_CEF_CONFIG()

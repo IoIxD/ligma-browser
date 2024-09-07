@@ -19,7 +19,11 @@
 #include <cef_client.h>
 #include <cef_render_handler.h>
 
+// CURL
+#include <curl/curl.h>
+
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -150,26 +154,6 @@ class BrowserView {
     GLint m_mvp_loc = -1;
   };
 
-  class DisplayHandler : public CefDisplayHandler {
-    double progress;
-    bool cursorLocked = false;
-
-   public:
-    DisplayHandler() {};
-    ~DisplayHandler() {};
-    //! \brief CefDisplayHandler interface
-    //! Update the cursor.
-    virtual bool OnCursorChange(
-        CefRefPtr<CefBrowser> browser,
-        CefCursorHandle cursor,
-        cef_cursor_type_t type,
-        const CefCursorInfo& custom_cursor_info) override;
-    virtual void OnLoadingProgressChange(CefRefPtr<CefBrowser> browser,
-                                         double progress) override;
-    IMPLEMENT_REFCOUNTING(DisplayHandler);
-
-    friend class BrowserView;
-  };
   // *************************************************************************
   //! \brief Provide access to browser-instance-specific callbacks. A single
   //! CefClient instance can be shared among any number of browsers.
@@ -195,6 +179,39 @@ class BrowserView {
   };
 
  public:
+  class DisplayHandler : public CefDisplayHandler {
+    double progress;
+    bool cursorLocked = false;
+    CURL* curl;
+
+   public:
+    std::string url;
+    std::vector<char> downloadedFavicon;
+
+    DisplayHandler();
+    ~DisplayHandler();
+
+    //! \brief CefDisplayHandler interface
+    //! Update the cursor.
+    virtual bool OnCursorChange(
+        CefRefPtr<CefBrowser> browser,
+        CefCursorHandle cursor,
+        cef_cursor_type_t type,
+        const CefCursorInfo& custom_cursor_info) override;
+    virtual void OnLoadingProgressChange(CefRefPtr<CefBrowser> browser,
+                                         double progress) override;
+
+    virtual void OnFaviconURLChange(
+        CefRefPtr<CefBrowser> browser,
+        const std::vector<CefString>& icon_urls) override;
+
+    virtual void OnAddressChange(CefRefPtr<CefBrowser> browser,
+                                 CefRefPtr<CefFrame> frame,
+                                 const CefString& url) override;
+    IMPLEMENT_REFCOUNTING(DisplayHandler);
+
+    friend class BrowserView;
+  };
   //! \brief Mouse cursor position on the OpenGL window
   int m_mouse_x;
   int m_mouse_y;

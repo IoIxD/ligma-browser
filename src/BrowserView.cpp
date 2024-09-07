@@ -3,7 +3,13 @@
 // https://github.com/andmcgregor/cefgui
 
 #include "BrowserView.hpp"
+#include <curl/curl.h>
+#include <format>
+#include <map>
+#include <print>
+#include <string>
 #include "GLCore.hpp"
+#include "internal/cef_string.h"
 #include "raylib.h"
 
 //------------------------------------------------------------------------------
@@ -153,6 +159,16 @@ void BrowserView::RenderHandler::OnPaint(CefRefPtr<CefBrowser> browser,
   GLCHECK(glBindTexture(GL_TEXTURE_2D, 0));
 }
 
+BrowserView::DisplayHandler::DisplayHandler() {
+  curl_global_init(CURL_GLOBAL_ALL);
+  curl = curl_easy_init();
+}
+
+BrowserView::DisplayHandler::~DisplayHandler() {
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+};
+
 bool BrowserView::DisplayHandler::OnCursorChange(
     CefRefPtr<CefBrowser> browser,
     CefCursorHandle cursor,
@@ -167,6 +183,44 @@ void BrowserView::DisplayHandler::OnLoadingProgressChange(
     double progress) {
   this->progress = progress;
 };
+
+std::map<std::string, std::vector<char>> buffer =
+    std::map<std::string, std::vector<char>>();
+
+size_t writeCallback(char* buf, size_t size, size_t nmemb, void* up) {
+  auto data = *(std::string*)up;
+  if (!buffer.contains(data)) {
+    buffer.insert(std::pair(data, std::vector<char>()));
+  }
+  for (int i = 0; i < size * nmemb; i++) {
+    buffer.at(data).push_back(buf[i]);
+  }
+  return size * nmemb;  // tell curl how many bytes we handled
+}
+
+void BrowserView::DisplayHandler::OnFaviconURLChange(
+    CefRefPtr<CefBrowser> browser,
+    const std::vector<CefString>& icon_urls) {
+  CefString i = icon_urls.at(0);
+  auto url = i.ToString();
+  std::println("Downloading favicon {}...\n", url);
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &url);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+  curl_easy_perform(curl);
+
+  this->downloadedFavicon.erase(buffer.at(url).begin(), buffer.at(url).end());
+  this->downloadedFavicon = buffer.at(url);
+
+  std::println("done");
+};
+
+void BrowserView::DisplayHandler::OnAddressChange(CefRefPtr<CefBrowser> browser,
+                                                  CefRefPtr<CefFrame> frame,
+                                                  const CefString& url) {
+  this->url = url.ToString();
+}
+
 //------------------------------------------------------------------------------
 BrowserView::BrowserView(const std::string& url)
     : m_mouse_x(0), m_mouse_y(0), m_viewport(0.0f, 0.0f, 1.0f, 1.0f) {
