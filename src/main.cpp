@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <string>
 #include "RaylibWindow.hpp"
+#include "cef_app.h"
 #include "rlgl.h"
 
 void segfault_sigaction(int signal, siginfo_t* si, void* arg) {
@@ -89,5 +90,7 @@ int main(int argc, char* argv[]) {
     window->resizeTranslation();
     window->render();
   }
+
+  CefShutdown();
   return 0;
 }

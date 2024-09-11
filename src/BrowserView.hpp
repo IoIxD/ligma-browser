@@ -186,6 +186,7 @@ class BrowserView {
 
    public:
     std::string url;
+    std::string title;
     std::vector<char> downloadedFavicon;
 
     DisplayHandler();
@@ -204,6 +205,9 @@ class BrowserView {
     virtual void OnFaviconURLChange(
         CefRefPtr<CefBrowser> browser,
         const std::vector<CefString>& icon_urls) override;
+
+    virtual void OnTitleChange(CefRefPtr<CefBrowser> browser,
+                               const CefString& title) override;
 
     virtual void OnAddressChange(CefRefPtr<CefBrowser> browser,
                                  CefRefPtr<CefFrame> frame,

@@ -461,14 +461,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "imageload"
-version = "0.1.0"
-dependencies = [
- "cbindgen",
- "image",
-]
-
-[[package]]
 name = "imgref"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -895,6 +887,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57397d16646700483b67d2dd6511d79318f9d057fdbd21a4066aeac8b41d310a"
 dependencies = [
  "bytemuck",
+]
+
+[[package]]
+name = "rs_image"
+version = "0.1.0"
+dependencies = [
+ "cbindgen",
+ "image",
 ]
 
 [[package]]

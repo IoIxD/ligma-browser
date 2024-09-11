@@ -1,13 +1,16 @@
 #ifndef __RAYLIB_WINDOW_HPP
 #define __RAYLIB_WINDOW_HPP
 
+#include <cstdint>
 #include <format>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include "BrowserView.hpp"
 #include "CEFGLWindow.hpp"
 #include "raylib.h"
+#include "rs_systemtime.hpp"
 
 class TabPosition {
  public:
@@ -20,18 +23,21 @@ class TabPosition {
 class TabInfo {
   std::shared_ptr<BrowserView> view;
   std::optional<Texture2D> texture;
+  Model model = {0};
 
  public:
   TabInfo(std::shared_ptr<BrowserView> view) : view(view) {};
-  std::optional<Texture2D> GetIcon();
+  Model* GetIcon();
   std::string title;
 
   friend class RaylibWindow;
 };
 
 class RaylibWindow {
+  SystemTime* time;
   CEFGLWindow* window;
   std::map<std::string, std::shared_ptr<BrowserView>> tabs;
+  std::map<std::string, TabInfo> tabinfos = std::map<std::string, TabInfo>();
   std::shared_ptr<BrowserView> current_tab;
   Vector2 v;
   int width = 800;
@@ -40,9 +46,10 @@ class RaylibWindow {
   void renderBrowserWindow();
   void renderTabs();
 
-  float dimension;
-  int time_since_scroll;
-  Camera3D* camera;
+  float dimension = 0.0;
+  int time_since_scroll = 0;
+  int leftClickCounter = 0;
+  Camera3D camera = {0};
 
   enum class State {
     Browser,
@@ -62,7 +69,7 @@ class RaylibWindow {
   void resizeTranslation();
   void render();
 
-  std::optional<TabInfo> tabAt(TabPosition index);
+  std::optional<TabInfo*> tabAt(TabPosition index);
   void insertTab(TabPosition index);
   void setTab(TabPosition index);
   void removeTab(TabPosition index);

@@ -1,20 +1,31 @@
 #include "RaylibWindow.hpp"
 #include <stdio.h>
+#include <cstddef>
+#include <cstdlib>
 #include <format>
-#include <imageload.hpp>
+#include <iostream>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 #include "BrowserView.hpp"
 #include "CEFGLWindow.hpp"
 #include "GLFW/glfw3.h"
 #include "JSKeyCodes.hpp"
-#include "imageload/imageload.hpp"
+#include "cef_version.h"
+#include "internal/cef_string.h"
 #include "internal/cef_types.h"
 #include "internal/cef_types_wrappers.h"
 #include "raylib.h"
 #include "rlgl.h"
+#include "rs_image.hpp"
+#include "rs_systemtime.hpp"
+
+#ifdef WIN32
+#else
+#include <sys/utsname.h>
+#endif
 
 #define LIGHTGOLD      \
   (Color) {            \
@@ -56,6 +67,28 @@ static void InitBrowser(int argc, char** argv) {
   settings.no_sandbox = true;
 #endif
 
+#ifdef WIN32
+#else
+  utsname buf;
+  uname(&buf);
+  std::string os = std::format("{}; {} {}", getenv("XDG_SESSION_TYPE"),
+                               buf.sysname, buf.machine);
+#endif
+  std::string user = std::format(
+      "Mozilla/5.0 ({}) AppleWebKit/537.36 (KHTML, like Gecko) "
+      "Chrome/{}.{}.{}.{} Safari/537.36",
+      os, CHROME_VERSION_MAJOR, CHROME_VERSION_MINOR, CHROME_VERSION_BUILD,
+      CHROME_VERSION_PATCH);
+
+  _cef_string_utf16_t lstr = {0};
+  auto fuck = CefString(user).ToString16();
+  char16_t* what = (char16_t*)fuck.c_str();
+  what[user.size() - 1] = 42;
+  lstr.str = what;
+  lstr.length = user.length();
+
+  settings.user_agent = lstr;
+
   bool result = CefInitialize(args, settings, nullptr, nullptr);
   if (!result) {
     std::cerr << "CefInitialize: failed" << std::endl;
@@ -78,7 +111,7 @@ RaylibWindow::RaylibWindow(int argc, char** argv) {
 
   state = State::Browser;
 
-  *camera = (Camera3D){
+  camera = (Camera3D){
       .position = (Vector3){3, 3, 3},
       .target = (Vector3){0, 0, 0},
       .up = (Vector3){0, 1, 0},
@@ -88,6 +121,8 @@ RaylibWindow::RaylibWindow(int argc, char** argv) {
 
   insertTab(TabPosition(0, 0, 0));
   setTab(TabPosition(0, 0, 0));
+
+  this->time = new SystemTime();
 }
 
 void RaylibWindow::resizeTranslation() {
@@ -159,10 +194,18 @@ void RaylibWindow::mouseTranslation() {
 
   auto left_down = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
   if (left_down) {
+    if (leftClickCounter < 3) {
+      leftClickCounter += 1;
+    }
     host->SendMouseClickEvent(evt, CefBrowserHost::MouseButtonType::MBT_LEFT,
-                              true, 1);
+                              true, leftClickCounter);
     host->SendMouseClickEvent(evt, CefBrowserHost::MouseButtonType::MBT_LEFT,
-                              false, 1);
+                              false, leftClickCounter);
+  }
+
+  if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+    current_tab->m_render_handler->UpdateDragCursor(current_tab->m_browser,
+                                                    DRAG_OPERATION_MOVE);
   }
 
   auto right_down = IsMouseButtonPressed(MOUSE_RIGHT_BUTTON);
@@ -181,10 +224,32 @@ void RaylibWindow::mouseTranslation() {
                               false, 1);
   }
 
+  host->SendMouseClickEvent(evt, CefBrowserHost::MouseButtonType::MBT_LEFT,
+                            false, 1);
   auto scroll = GetMouseWheelMoveV();
   if (scroll.x != 0.0 || scroll.y != 0.0) {
     host->SendMouseWheelEvent(evt, scroll.x * 50.0, scroll.y * 50.0);
   }
+
+  /*CefRefPtr<CefV8Context> v8_context =
+      current_tab->m_render_handler.->GetV8Context();
+  if (v8_context.get() && v8_context->Enter()) {
+    CefRefPtr<CefV8Value> retval;
+    CefRefPtr<CefV8Exception> exception;
+    if (v8_context->Eval("document.body.style.cursor", "", 0, retval,
+                         exception)) {
+      CefString rect_x = retval->GetStringValue();
+      std::println(std::cout, "{}", rect_x.ToString().c_str());
+    }
+    v8_context->Exit();
+  }*/
+
+  if (this->time->get_duration()->as_secs_f64() >= 1.0 / 1.0) {
+    if (leftClickCounter > 0) {
+      leftClickCounter -= 1;
+    }
+    this->time = new SystemTime();
+  };
 }
 
 void RaylibWindow::render() {
@@ -226,10 +291,10 @@ void RaylibWindow::renderTabs() {
       time_since_scroll += 1;
     }
   } else {
-    if (camera->position.x + v >= 1) {
-      camera->position.x += v;
-      camera->position.y += v;
-      camera->position.z += v;
+    if (camera.position.x + v >= 1) {
+      camera.position.x += v;
+      camera.position.y += v;
+      camera.position.z += v;
     }
     if (time_since_scroll > 0) {
       time_since_scroll -= 1;
@@ -243,11 +308,11 @@ void RaylibWindow::renderTabs() {
   DrawRectangleGradientV(0, 0, GetScreenWidth(), GetScreenHeight(), WHITE,
                          RAYWHITE);
 
-  BeginMode3D(*camera);
+  BeginMode3D(camera);
 
-  Ray ray = GetMouseRay(GetMousePosition(), *camera);
+  Ray ray = GetMouseRay(GetMousePosition(), camera);
 
-  float mul = camera->position.x;
+  float mul = camera.position.x;
   for (float y = -mul * 10; y < mul * 10; y += 2) {
     for (float x = -mul * 10; x < mul * 10; x += 2) {
       Color col;
@@ -264,10 +329,11 @@ void RaylibWindow::renderTabs() {
         continue;
       }
       if (hasTab(index)) {
-        auto tab = tabAt(index);
-        if (!tab.has_value()) {
+        auto tab_ = tabAt(index);
+        if (!tab_.has_value()) {
           continue;
         }
+        auto tab = tab_.value();
 
         auto coll = GetRayCollisionBox(
             ray, (BoundingBox){
@@ -275,15 +341,14 @@ void RaylibWindow::renderTabs() {
                      (Vector3){floorf(x), 0, floorf(y)}});
 
         auto img = tab->GetIcon();
-        if (img.has_value()) {
+        if (img != NULL) {
           if (coll.hit) {
             col = LIGHTGOLD;
             tab_title = tab->title;
           } else {
             col = WHITE;
           }
-          // DrawCubeTexture(img.value(), (Vector3){x, 0, y}, 1.0, 1.0, 1.0,
-          // col);
+          DrawModel(*img, (Vector3){x, 0, y}, 1.1, col);
         } else {
           if (coll.hit) {
             col = GOLD;
@@ -340,18 +405,21 @@ void RaylibWindow::renderTabs() {
   if (time_since_scroll != 0) {
     int y_by = time_since_scroll;
     if (y_by >= 8) {
-      y_by = 8;
+      y_by = time_since_scroll;
     }
     auto num = std::format("{}", dimension);
     DrawText(num.c_str(), GetScreenWidth() / 2 - MeasureText(num.c_str(), 32),
              GetScreenHeight() - (y_by * 8), 32, GRAY);
   }
+
+  CefDoMessageLoopWork();
   EndDrawing();
 }
 
 void RaylibWindow::insertTab(TabPosition index) {
   auto tab = window->createBrowser("https://google.com");
-  tab.lock()->reshape(width, height);
+  auto t = tab.lock();
+  t->reshape(width, height);
 
   this->tabs.insert(std::pair<std::string, std::shared_ptr<BrowserView>>(
       this->hashIndex(index), tab));
@@ -373,9 +441,16 @@ bool RaylibWindow::isCurrent(TabPosition index) {
   return current_tab == this->tabs.at(this->hashIndex(index));
 }
 
-std::optional<TabInfo> RaylibWindow::tabAt(TabPosition index) {
-  auto info = TabInfo(this->tabs.at(this->hashIndex(index)));
-  return info;
+std::optional<TabInfo*> RaylibWindow::tabAt(TabPosition index) {
+  if (tabs.contains(hashIndex(index))) {
+    if (!tabinfos.contains(hashIndex(index))) {
+      tabinfos.insert(std::pair(hashIndex(index),
+                                TabInfo(this->tabs.at(hashIndex(index)))));
+    };
+    return &tabinfos.at(hashIndex(index));
+  } else {
+    return {};
+  }
 }
 
 void RaylibWindow::disableGUI() {};
@@ -390,24 +465,52 @@ void RaylibWindow::toggleView() {
 
 void RaylibWindow::updateButtons() {};
 
-std::optional<Texture2D> TabInfo::GetIcon() {
-  printf("getting icon\n");
-  if (this->texture.has_value()) {
-    return this->texture.value();
-  } else {
+Model* TabInfo::GetIcon() {
+  if (this->model.materialCount == 0) {
     auto view = this->view;
     auto downloadedFavicon = view->m_display_handler->downloadedFavicon;
-    auto img = DynamicImage(downloadedFavicon);
-    return {};
-    /*auto img = LoadICO(downloadedFavicon.data(), downloadedFavicon.size(),
-                       &frameCount);
-    if (img == NULL) {
-      return {};
-    } else {
-      SetWindowIcon(img[0]);
-      printf("loading texture\n");
-      this->texture = LoadTextureFromImage(img[0]);
-      return this->texture.value();
-    }*/
+    if (downloadedFavicon.empty()) {
+      return NULL;
+    }
+    if (downloadedFavicon.data() == NULL) {
+      return NULL;
+    }
+    try {
+      auto img = DynamicImage(downloadedFavicon);
+      if (img.width() == 0) {
+        return NULL;
+      }
+      Image im = {0};
+      im.width = img.width();
+      im.height = img.height();
+      im.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+      im.mipmaps = 1;
+      // By no means the most efficient way to do this but we only do it once so
+      // it's fine.
+      std::println(std::cout, "width: {}, height: {}", img.width(),
+                   img.height());
+      for (int y = 0; y < img.height(); y++) {
+        for (int x = 0; x < img.width(); x++) {
+          auto pixel = img.get_pixel(x, y);
+
+          ImageDrawPixel(&im, x, y,
+                         (Color){pixel.r, pixel.g, pixel.b, pixel.a});
+        }
+      }
+      auto t = LoadTextureFromImage(im);
+      this->texture = t;
+
+      Model m = LoadModelFromMesh(GenMeshCube(1.0, 1.0, 1.0));
+      Material map = m.materials[0];
+      map.maps[MATERIAL_MAP_DIFFUSE].texture = t;
+
+      m.materials[0] = map;
+      this->model = m;
+
+      this->title = view->m_display_handler->title;
+    } catch (image_error* ex) {
+      std::println(std::cout, "Couldn't get icon: {}", ex->what());
+    }
   }
+  return &this->model;
 }

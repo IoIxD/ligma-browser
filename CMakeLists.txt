@@ -16,6 +16,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 # Project name.
 project(ligma-browser)
 
+
 # Use folders in the resulting project files.
 set_property(GLOBAL PROPERTY OS_FOLDERS ON)
 
@@ -92,6 +93,7 @@ file(GLOB CHROME_RESOURCES
   ${CEF_ROOT}/Resources/*
 )
 
+add_executable(${PROJECT_NAME} ${sources})
 
 file(COPY ${CHROME_RESOURCES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY ${CEF_ROOT}/Resources/locales DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/locales)
@@ -101,6 +103,13 @@ file(COPY ${CHROME_RESOURCES} DESTINATION ${CEF_ROOT}/${CMAKE_BUILD_TYPE}/)
 file(COPY ${CEF_ROOT}/Resources/locales DESTINATION ${CEF_ROOT}/${CMAKE_BUILD_TYPE}/locales)
 
 file(COPY ${CMAKE_SOURCE_DIR}/src/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR}) 
+
+ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+
+target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(${PROJECT_NAME} libcef_lib libcef_dll_wrapper)
+target_link_libraries(${PROJECT_NAME} ${GLEW_LIBRARIES} ${CURL_LIBRARIES} )
+
 include(FetchContent)
 Set(FETCHCONTENT_QUIET FALSE)
 FetchContent_Declare(
@@ -111,27 +120,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raylib)
 
-ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
-
-# We use Rust's image crate because it does what C++ can't, somehow.
 FetchContent_Declare(
-    Corrosion
-    GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
-    GIT_TAG v0.5 # Optionally specify a commit hash, version tag or branch here
+    rs_systemtime
+    GIT_REPOSITORY "https://github.com/IoIxD/rs_systemtime.git"
+    GIT_PROGRESS TRUE
 )
-FetchContent_MakeAvailable(Corrosion)
+FetchContent_MakeAvailable(rs_systemtime)
+include_directories(${RS_SYSTEMTIME_INCLUDE_DIRECTORY})
 
-# Import targets defined in a package or workspace manifest `Cargo.toml` file
-corrosion_import_crate(MANIFEST_PATH imageload/Cargo.toml)
+add_subdirectory("rs_image")
+include_directories("rs_image/include")
 
-include_directories(imageload)
-FILE(GLOB sources imageload/*.cpp)
-
-# Target executable names.
-add_executable(${PROJECT_NAME} ${sources})
-target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} PUBLIC libcef_lib libcef_dll_wrapper raylib)
-target_link_libraries(${PROJECT_NAME} PUBLIC ${GLEW_LIBRARIES} ${CURL_LIBRARIES} )
-target_link_libraries(${PROJECT_NAME} PUBLIC imageload)
+target_link_libraries(${PROJECT_NAME} raylib rs_image rs_systemtime)
 
 PRINT_CEF_CONFIG()

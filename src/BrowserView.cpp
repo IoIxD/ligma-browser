@@ -201,7 +201,10 @@ size_t writeCallback(char* buf, size_t size, size_t nmemb, void* up) {
 void BrowserView::DisplayHandler::OnFaviconURLChange(
     CefRefPtr<CefBrowser> browser,
     const std::vector<CefString>& icon_urls) {
-  CefString i = icon_urls.at(0);
+  if (icon_urls.size() <= 0) {
+    return;
+  }
+  CefString i = icon_urls.at(icon_urls.size() - 1);
   auto url = i.ToString();
   std::println("Downloading favicon {}...\n", url);
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -209,11 +212,20 @@ void BrowserView::DisplayHandler::OnFaviconURLChange(
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
   curl_easy_perform(curl);
 
-  this->downloadedFavicon.erase(buffer.at(url).begin(), buffer.at(url).end());
+  if (!buffer.contains(url)) {
+    buffer.insert(std::pair(url, std::vector<char>()));
+  } else {
+    this->downloadedFavicon.erase(buffer.at(url).begin(), buffer.at(url).end());
+  }
   this->downloadedFavicon = buffer.at(url);
 
   std::println("done");
 };
+
+void BrowserView::DisplayHandler::OnTitleChange(CefRefPtr<CefBrowser> browser,
+                                                const CefString& title) {
+  this->title = title;
+}
 
 void BrowserView::DisplayHandler::OnAddressChange(CefRefPtr<CefBrowser> browser,
                                                   CefRefPtr<CefFrame> frame,

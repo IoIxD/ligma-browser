@@ -19,7 +19,7 @@ fn main() {
 
     let package_name = env::var("CARGO_PKG_NAME").unwrap();
     let output_file = workspace_dir()
-        .join(format!("__internal__{}.hpp", package_name))
+        .join(format!("include/{}.h", package_name))
         .display()
         .to_string();
 
