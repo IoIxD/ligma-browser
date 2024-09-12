@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 project(imageload)
 
-FILE(GLOB sources src/dummy.cpp)
+FILE(GLOB sources src/*.cpp)
+
+include_directories(include)
 
 add_library(${PROJECT_NAME} ${sources})
 

@@ -2,8 +2,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
-#include <stdexcept>
+#include <functional>
 #include <vector>
+
+namespace rs_image {
 namespace internal {
 using std::abs;
 extern "C" {
@@ -11,147 +13,115 @@ extern "C" {
 }
 }  // namespace internal
 
+using internal::ColorType;
 using internal::Dimensions;
+using internal::Ordering;
+using internal::PixelResult;
 using internal::Rgba;
-
-#ifndef __IMAGE_LOAD_HPP
-#define __IMAGE_LOAD_HPP
+using internal::SizeHint;
 
 class image_error : public std::exception {
   internal::ErrorType er;
 
  public:
   image_error(internal::ErrorType er) : er(er) {};
-  const char* what() const noexcept override {
-    switch (er) {
-      case internal::IMAGE_ERROR_NONE:
-        return "No error";
-      case internal::IMAGE_ERROR_DECODING:
-        return "Decoding error";
-      case internal::IMAGE_ERROR_ENCODING:
-        return "Encoding error";
-      case internal::IMAGE_ERROR_PARAMETER_DIMENSION_MISMATCH:
-        return "The Image's dimensions are either too small or too large";
-      case internal::IMAGE_ERROR_PARAMETER_FAILED_ALREADY:
-        return "The end the image stream has been reached due to a previous "
-               "error";
-      case internal::IMAGE_ERROR_PARAMETER_MALFORMED:
-        return "A parameter is malformed";
-      case internal::IMAGE_ERROR_PARAMETER_NO_MORE_DATA:
-        return "The end of the image has been reached";
-      case internal::IMAGE_ERROR_INSUFFICIENT_MEMORY:
-        return "Memory limit exceeded";
-      case internal::IMAGE_ERROR_LIMITS_UNSUPPORTED:
-        return "Image size exceeds limit";
-      case internal::IMAGE_ERROR_DIMENSION_ERROR:
-        return "Some strict limits are specified but not supported by the "
-               "opertation.";
-      case internal::IMAGE_ERROR_UNSUPPORTED_COLOR:
-        return "The encoder or decoder for this image does not support the "
-               "provided color type";
-      case internal::IMAGE_ERROR_UNSUPPORTED_FORMAT:
-        return "The image format is not supported";
-      case internal::IMAGE_ERROR_UNSUPPORTED_OTHER:
-        return "IMAGE_ERROR_UNSUPPORTED_OTHER";
-      case internal::IMAGE_ERROR_IO_NOT_FOUND:
-        return "IMAGE_ERROR_IO_NOT_FOUND";
-        break;
-      case internal::IMAGE_ERROR_IO_PERMISSION_DENIED:
-        return "IMAGE_ERROR_IO_PERMISSION_DENIED";
-        break;
-      case internal::IMAGE_ERROR_IO_CONNECTION_REFUSED:
-        return "IMAGE_ERROR_IO_CONNECTION_REFUSED";
-        break;
-      case internal::IMAGE_ERROR_IO_CONNECTION_RESET:
-        return "IMAGE_ERROR_IO_CONNECTION_RESET";
-        break;
-      case internal::IMAGE_ERROR_IO_CONNECTION_ABORTED:
-        return "IMAGE_ERROR_IO_CONNECTION_ABORTED";
-        break;
-      case internal::IMAGE_ERROR_IO_NOT_CONNECTED:
-        return "IMAGE_ERROR_IO_NOT_CONNECTED";
-        break;
-      case internal::IMAGE_ERROR_IO_ADDR_IN_USE:
-        return "IMAGE_ERROR_IO_ADDR_IN_USE";
-        break;
-      case internal::IMAGE_ERROR_IO_ADDR_NOT_AVALIABLE:
-        return "IMAGE_ERROR_IO_ADDR_NOT_AVALIABLE";
-        break;
-      case internal::IMAGE_ERROR_IO_BROKEN_PIPE:
-        return "IMAGE_ERROR_IO_BROKEN_PIPE";
-        break;
-      case internal::IMAGE_ERROR_IO_ALREADY_EXISTS:
-        return "IMAGE_ERROR_IO_ALREADY_EXISTS";
-        break;
-      case internal::IMAGE_ERROR_IO_WOULD_BLOCK:
-        return "IMAGE_ERROR_IO_WOULD_BLOCK";
-        break;
-      case internal::IMAGE_ERROR_IO_INVALID_INPUT:
-        return "IMAGE_ERROR_IO_INVALID_INPUT";
-        break;
-      case internal::IMAGE_ERROR_IO_INVALID_DATA:
-        return "IMAGE_ERROR_IO_INVALID_DATA";
-        break;
-      case internal::IMAGE_ERROR_IO_TIMED_OUT:
-        return "IMAGE_ERROR_IO_TIMED_OUT";
-        break;
-      case internal::IMAGE_ERROR_IO_WRITE_ZERO:
-        return "IMAGE_ERROR_IO_WRITE_ZERO";
-        break;
-      case internal::IMAGE_ERROR_IO_INTERRUPTED:
-        return "IMAGE_ERROR_IO_INTERRUPTED";
-        break;
-      case internal::IMAGE_ERROR_IO_UNSUPPORED:
-        return "IMAGE_ERROR_IO_UNSUPPORED";
-        break;
-      case internal::IMAGE_ERROR_IO_UNEXPECTED_EOF:
-        return "IMAGE_ERROR_IO_UNEXPECTED_EOF";
-        break;
-      case internal::IMAGE_ERROR_IO_OUT_OF_MEMORY:
-        return "IMAGE_ERROR_IO_OUT_OF_MEMORY";
-        break;
-      case internal::IMAGE_ERROR_IO_OTHER:
-        return "IMAGE_ERROR_IO_OTHER";
-        break;
-      case internal::IMAGE_ERROR_UNKNOWN:
-        return "IMAGE_ERROR_UNKNOWN";
-        break;
-    }
-  }
+  const char* what() const noexcept override;
+};
+
+template <typename T>
+class Iterator {
+  internal::RawIterator* inner;
+
+ public:
+  Iterator(internal::RawIterator* inner) : inner() {};
+
+  SizeHint size_hint();
+  uintptr_t count();
+  Iterator step_by(uintptr_t step);
+  Iterator chain(Iterator other);
+  Iterator zip(Iterator other);
+  Iterator map(std::function<void(T)>);
+  void for_each(std::function<void(T)>);
+  Iterator filter(std::function<bool(T)>);
+  Iterator filter_map(std::function<Iterator*(T)>);
+  Iterator enumerate();
+  Iterator peekable();
+  Iterator skip_while(std::function<bool(T)>);
+  Iterator take_while(std::function<bool(T)>);
+  Iterator map_while(std::function<Iterator*(T)>);
+  Iterator skip(uintptr_t n);
+  Iterator take(uintptr_t n);
+  Iterator scan(void* initial_state, std::function<void*(void*, T)>);
+  Iterator flat_map(std::function<Iterator(T)>);
+  Iterator fuse();
+  Iterator inspect(std::function<void(T)>);
+  Iterator by_ref();
+  bool all(std::function<bool(T)>);
+  bool any(std::function<bool(T)>);
+  Ordering cmp(Iterator other);
+  bool eq(Iterator other);
+  bool ne(Iterator other);
+  bool lt(Iterator other);
+  bool le(Iterator other);
+  bool gt(Iterator other);
+  bool ge(Iterator other);
+  T next();
+  T last();
+  T nth(uintptr_t n);
+  T fold(T init, std::function<T(T, T)>);
+  T reduce(std::function<T(T, T)>);
+  T find(std::function<bool(T*)>);
+  T find_map(std::function<T(T)>);
+  size_t* position(std::function<bool(T*)>);
+  T max();
+  T min();
+  Ordering* partial_cmp(Iterator* other);
+  std::vector<T> collect();
+
+  /*T* max_by_key(std::function<void*(void*)>);
+  T* max_by(std::function<Ordering(void*, void*)>);
+  T* min_by_key(std::function<void*(void*)>);
+  T* min_by(std::function<Ordering(void*, void*)>);*/
 };
 
 class DynamicImage {
  private:
   internal::DynamicImage* img;
+  DynamicImage(internal::DynamicImage* img) : img(img) {};
 
  public:
-  DynamicImage(std::vector<char> data) {
-    auto er = internal::dynamic_image_load_from_memory(
-        (uint8_t*)(char*)data.data(), data.size());
-    if (er.err != internal::IMAGE_ERROR_NONE) {
-      throw new image_error(er.err);
-    }
-    this->img = er.res;
-    if (er.res == NULL) {
-      throw new std::runtime_error("it's fucking null dude idk");
-    }
-  };
-  ~DynamicImage() { internal::dynamic_image_free(this->img); };
-  Dimensions get_dimensions() {
-    return internal::dynamic_image_dimensions(this->img);
-  };
-  Rgba get_pixel(uint32_t x, uint32_t y) {
-    return internal::dynamic_image_get_pixel(this->img, x, y);
-  };
-  uint32_t width() {
-    if (this->img == NULL) {
-      throw new std::runtime_error("it's fucking null dude idk");
-    };
-    return internal::dynamic_image_width(this->img);
-  };
-  uint32_t height() { return internal::dynamic_image_height(this->img); };
-  bool InBounds(uint32_t x, uint32_t y) {
-    return internal::dynamic_image_in_bounds(this->img, x, y);
-  };
+  uint32_t width();
+
+  DynamicImage(std::vector<char> data);
+  ~DynamicImage();
+
+  // DynamicImage* from_decoder();
+  uint8_t* as_bytes(size_t* count);
+  DynamicImage* blur(float sigma);
+  DynamicImage* brighten(float value);
+  void invert();
+  ColorType color();
+  DynamicImage* fliph();
+  DynamicImage* flipv();
+  DynamicImage* grayscale();
+  uint32_t height();
+  DynamicImage* rotate180();
+  DynamicImage* rotate270();
+  DynamicImage* rotate90();
+  DynamicImage* into_luma16();
+  DynamicImage* into_luma8();
+  DynamicImage* into_luma_alpha16();
+  DynamicImage* into_luma_alpha8();
+  DynamicImage* into_rgb16();
+  DynamicImage* into_rgb32f();
+  DynamicImage* into_rgb8();
+  DynamicImage* into_rgba16();
+  DynamicImage* into_rgba32f();
+  DynamicImage* into_rgba8();
+  Dimensions get_dimensions();
+  Rgba get_pixel(uint32_t x, uint32_t y);
+  bool in_bounds(uint32_t x, uint32_t y);
+  Iterator<PixelResult> pixels();
 };
-#endif
+
+}  // namespace rs_image

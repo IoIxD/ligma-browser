@@ -1,26 +1,5 @@
 #include "RaylibWindow.hpp"
-#include <stdio.h>
-#include <cstddef>
-#include <cstdlib>
-#include <format>
-#include <iostream>
-#include <memory>
-#include <optional>
-#include <ostream>
-#include <string>
-#include <utility>
-#include "BrowserView.hpp"
-#include "CEFGLWindow.hpp"
-#include "GLFW/glfw3.h"
-#include "JSKeyCodes.hpp"
-#include "cef_version.h"
-#include "internal/cef_string.h"
-#include "internal/cef_types.h"
-#include "internal/cef_types_wrappers.h"
-#include "raylib.h"
-#include "rlgl.h"
-#include "rs_image.hpp"
-#include "rs_systemtime.hpp"
+#include "rs_image.h"
 
 #ifdef WIN32
 #else
@@ -489,14 +468,16 @@ Model* TabInfo::GetIcon() {
       // it's fine.
       std::println(std::cout, "width: {}, height: {}", img.width(),
                    img.height());
-      for (int y = 0; y < img.height(); y++) {
-        for (int x = 0; x < img.width(); x++) {
-          auto pixel = img.get_pixel(x, y);
 
-          ImageDrawPixel(&im, x, y,
-                         (Color){pixel.r, pixel.g, pixel.b, pixel.a});
-        }
-      }
+      auto pixels = img.pixels();
+
+      pixels.for_each([&im](PixelResult pixel) {
+        std::println(std::cout, "({} {})", pixel.x, pixel.y);
+        auto color = pixel.color;
+        ImageDrawPixel(&im, pixel.x, pixel.y,
+                       (Color){color.r, color.g, color.b, color.a});
+      });
+
       auto t = LoadTextureFromImage(im);
       this->texture = t;
 

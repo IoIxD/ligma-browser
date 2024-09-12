@@ -6,6 +6,19 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+typedef enum ColorType {
+  COLOR_TYPE_L8,
+  COLOR_TYPE_LA8,
+  COLOR_TYPE_RGB8,
+  COLOR_TYPE_RGBA8,
+  COLOR_TYPE_L16,
+  COLOR_TYPE_LA16,
+  COLOR_TYPE_RGB16,
+  COLOR_TYPE_RGBA16,
+  COLOR_TYPE_RGB32F,
+  COLOR_TYPE_RGBA32F,
+} ColorType;
+
 typedef enum ErrorType {
   IMAGE_ERROR_NONE,
   IMAGE_ERROR_DECODING,
@@ -72,6 +85,38 @@ typedef enum ExtendedColorType {
   EXTENDED_COLOR_TYPE_CMYK8,
 } ExtendedColorType;
 
+typedef enum FilterType {
+  FILTER_TYPE_NEAREST,
+  FILTER_TYPE_TRIANGLE,
+  FILTER_TYPE_CATMULL_ROM,
+  FILTER_TYPE_GAUSSIAN,
+  FILTER_TYPE_LANCZOS3,
+} FilterType;
+
+typedef enum ImageFormat {
+  IMAGE_FORMAT_PNG,
+  IMAGE_FORMAT_JPEG,
+  IMAGE_FORMAT_GIF,
+  IMAGE_FORMAT_WEBP,
+  IMAGE_FORMAT_PNM,
+  IMAGE_FORMAT_TIFF,
+  IMAGE_FORMAT_TGA,
+  IMAGE_FORMAT_DDS,
+  IMAGE_FORMAT_BMP,
+  IMAGE_FORMAT_ICO,
+  IMAGE_FORMAT_HDR,
+  IMAGE_FORMAT_OPENEXR,
+  IMAGE_FORMAT_FARBFELD,
+  IMAGE_FORMAT_AVIF,
+  IMAGE_FORMAT_QOI,
+} ImageFormat;
+
+typedef enum Ordering {
+  ORDERING_LESS,
+  ORDERING_EQUAL,
+  ORDERING_GREATER,
+} Ordering;
+
 /**
  * Type used for the SeekFrom struct
  */
@@ -80,12 +125,6 @@ typedef enum SeekType {
   SEEK_FROM_END,
   SEEK_FROM_CURRENT,
 } SeekType;
-
-typedef struct ColorType ColorType;
-
-typedef struct FilterType FilterType;
-
-typedef struct ImageFormat ImageFormat;
 
 typedef struct DynamicImage {
   void *inner;
@@ -162,9 +201,37 @@ typedef struct Rgba {
   uint8_t a;
 } Rgba;
 
-struct LoadFromMemoryResult dynamic_image_load_from_memory(uint8_t *bytes, uintptr_t size);
+typedef struct ThinIteratorVtable {
+  void *(*next)(void*);
+  void (*drop)(void*);
+} ThinIteratorVtable;
 
-void dynamic_image_from_decoder(void);
+typedef struct ThinIteratorVtable *BoxedThinIterator;
+
+/**
+ * A wrapper for the Rust iterator to C. You generally get this from one of the provided library functions.
+ *
+ * `__s` is expected to a pointer to something that implements Rust's std::iter::Iterator. You should not try and instantiate this yourself unless you have an object from Rust code.
+ *
+ * To make use of this, you should use the appropriate `iter_...` function.
+ */
+typedef struct RawIterator {
+  BoxedThinIterator *__s;
+  uintptr_t __size;
+} RawIterator;
+
+typedef struct PixelResult {
+  uint32_t x;
+  uint32_t y;
+  struct Rgba color;
+} PixelResult;
+
+typedef struct SizeHint {
+  uintptr_t lhs;
+  uintptr_t *rhs;
+} SizeHint;
+
+struct LoadFromMemoryResult dynamic_image_load_from_memory(uint8_t *bytes, uintptr_t size);
 
 struct DynamicImage *dynamic_image_adjust_contrast(struct DynamicImage *this_, float c);
 
@@ -176,7 +243,7 @@ struct DynamicImage *dynamic_image_brighten(struct DynamicImage *this_, int32_t 
 
 void dynamic_image_invert(struct DynamicImage *this_);
 
-struct ColorType dynamic_image_color(struct DynamicImage *this_);
+enum ColorType dynamic_image_color(struct DynamicImage *this_);
 
 struct DynamicImage *dynamic_image_crop(struct DynamicImage *this_,
                                         uint32_t x,
@@ -215,17 +282,17 @@ const uint8_t **dynamic_image_into_bytes(const struct DynamicImage *this_, uintp
 struct DynamicImage *dynamic_image_resize(struct DynamicImage *this_,
                                           uint32_t nwidth,
                                           uint32_t nheight,
-                                          struct FilterType filter);
+                                          enum FilterType filter);
 
 struct DynamicImage *dynamic_image_resize_exact(struct DynamicImage *this_,
                                                 uint32_t nwidth,
                                                 uint32_t nheight,
-                                                struct FilterType filter);
+                                                enum FilterType filter);
 
 struct DynamicImage *dynamic_image_resize_to_fill(struct DynamicImage *this_,
                                                   uint32_t nwidth,
                                                   uint32_t nheight,
-                                                  struct FilterType filter);
+                                                  enum FilterType filter);
 
 struct DynamicImage *dynamic_image_rotate180(struct DynamicImage *this_);
 
@@ -237,7 +304,7 @@ const char *dynamic_image_save(struct DynamicImage *this_, const char *path);
 
 enum ErrorType dynamic_image_save_with_format(struct DynamicImage *this_,
                                               const char *path,
-                                              struct ImageFormat format);
+                                              enum ImageFormat format);
 
 struct DynamicImage *dynamic_image_thumbnail(struct DynamicImage *this_,
                                              uint32_t nwidth,
@@ -269,7 +336,7 @@ struct DynamicImage *dynamic_image_into_rgba8(struct DynamicImage *this_);
 
 enum ErrorType dynamic_image_write_to(struct DynamicImage *this_,
                                       struct RustWriter *w,
-                                      struct ImageFormat format);
+                                      enum ImageFormat format);
 
 enum ErrorType dynamic_image_write_with_encoder(struct DynamicImage *this_,
                                                 struct ImageEncoder *encoder);
@@ -280,6 +347,94 @@ struct Rgba dynamic_image_get_pixel(struct DynamicImage *this_, uint32_t x, uint
 
 bool dynamic_image_in_bounds(struct DynamicImage *this_, uint32_t x, uint32_t y);
 
+struct RawIterator dynamic_image_pixels(struct DynamicImage *this_);
+
 void dynamic_image_free(struct DynamicImage *this_);
+
+struct PixelResult ____(void);
+
+void *iter_next(struct RawIterator *s);
+
+struct SizeHint iter_size_hint(struct RawIterator *s);
+
+uintptr_t iter_count(struct RawIterator *s);
+
+void *iter_last(struct RawIterator *s);
+
+void *iter_nth(struct RawIterator *s, uintptr_t n);
+
+struct RawIterator iter_step_by(struct RawIterator *s, uintptr_t step);
+
+struct RawIterator iter_chain(struct RawIterator *s, struct RawIterator other);
+
+struct RawIterator iter_zip(struct RawIterator *s, struct RawIterator other);
+
+struct RawIterator iter_map(struct RawIterator *s, void (*f)(void*));
+
+void iter_for_each(struct RawIterator *s, void (*f)(void*));
+
+struct RawIterator iter_filter(struct RawIterator *s, bool (*predicate)(void*));
+
+struct RawIterator iter_filter_map(struct RawIterator *s, struct RawIterator *(*f)(void*));
+
+struct RawIterator iter_enumerate(struct RawIterator *s);
+
+struct RawIterator iter_peekable(struct RawIterator *s);
+
+struct RawIterator iter_skip_while(struct RawIterator *s, bool (*predicate)(void*));
+
+struct RawIterator iter_take_while(struct RawIterator *s, bool (*predicate)(void*));
+
+struct RawIterator iter_map_while(struct RawIterator *s, struct RawIterator *(*predicate)(void*));
+
+struct RawIterator iter_skip(struct RawIterator *s, uintptr_t n);
+
+struct RawIterator iter_take(struct RawIterator *s, uintptr_t n);
+
+struct RawIterator iter_scan(struct RawIterator *s, void *initial_state, void *(*f)(void*, void*));
+
+struct RawIterator iter_flat_map(struct RawIterator *s, struct RawIterator (*f)(void*));
+
+struct RawIterator iter_fuse(struct RawIterator *s);
+
+struct RawIterator iter_inspect(struct RawIterator *s, void (*f)(void*));
+
+struct RawIterator iter_by_ref(struct RawIterator *s);
+
+void **iter_collect(struct RawIterator *s, uintptr_t *size);
+
+void *iter_fold(struct RawIterator *s, void *init, void *(*f)(void*, void*));
+
+void *iter_reduce(struct RawIterator *s, void *(*f)(void*, void*));
+
+bool iter_all(struct RawIterator *s, bool (*f)(void*));
+
+bool iter_any(struct RawIterator *s, bool (*f)(void*));
+
+void *iter_find(struct RawIterator *s, bool (*predicate)(void*));
+
+void *iter_find_map(struct RawIterator *s, void *(*f)(void*));
+
+uintptr_t *iter_position(struct RawIterator *s, bool (*predicate)(void*));
+
+void *iter_max(struct RawIterator *s);
+
+void *iter_min(struct RawIterator *s);
+
+enum Ordering iter_cmp(struct RawIterator *s, struct RawIterator other);
+
+enum Ordering *iter_partial_cmp(struct RawIterator *s, struct RawIterator other);
+
+bool iter_eq(struct RawIterator *s, struct RawIterator other);
+
+bool iter_ne(struct RawIterator *s, struct RawIterator other);
+
+bool iter_lt(struct RawIterator *s, struct RawIterator other);
+
+bool iter_le(struct RawIterator *s, struct RawIterator other);
+
+bool iter_gt(struct RawIterator *s, struct RawIterator other);
+
+bool iter_ge(struct RawIterator *s, struct RawIterator other);
 
 #endif  /* __INTERNAL_IMAGE_LOAD_H */

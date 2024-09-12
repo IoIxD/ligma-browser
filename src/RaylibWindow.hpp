@@ -1,16 +1,32 @@
 #ifndef __RAYLIB_WINDOW_HPP
 #define __RAYLIB_WINDOW_HPP
 
+#include <stdio.h>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <format>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
+#include <utility>
 #include "BrowserView.hpp"
 #include "CEFGLWindow.hpp"
+#include "GLFW/glfw3.h"
+#include "JSKeyCodes.hpp"
+#include "cef_version.h"
+#include "internal/cef_string.h"
+#include "internal/cef_types.h"
+#include "internal/cef_types_wrappers.h"
 #include "raylib.h"
+#include "rlgl.h"
+#include "rs_image.hpp"
 #include "rs_systemtime.hpp"
+
+using namespace rs_image;
 
 class TabPosition {
  public:

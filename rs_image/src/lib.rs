@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+#![allow(unused_mut)]
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(unused_unsafe)]
@@ -8,7 +10,11 @@ use std::{
     os::raw::c_void,
 };
 
+mod iter;
+mod thin;
+
 use image::{EncodableLayout, GenericImageView, ImageError};
+use iter::{make_raw_iterator, RawIterator};
 
 /// Struct that contains function pointers that correspond to both Rust's Write trait and it's Seek trait.
 /// The idea here is that you put the pointer for your custom own struct in the user_data field,
@@ -16,9 +22,9 @@ use image::{EncodableLayout, GenericImageView, ImageError};
 #[repr(C)]
 pub struct RustWriter {
     pub user_data: *mut c_void,
-    pub write_fn: fn(ud: *mut c_void, buf: *const u8, buf_size: usize) -> usize,
-    pub flush_fn: fn(ud: *mut c_void) -> (),
-    pub seek_fn: fn(ud: *mut c_void, pos: SeekFrom) -> u64,
+    pub write_fn: extern "C" fn(ud: *mut c_void, buf: *const u8, buf_size: usize) -> usize,
+    pub flush_fn: extern "C" fn(ud: *mut c_void) -> (),
+    pub seek_fn: extern "C" fn(ud: *mut c_void, pos: SeekFrom) -> u64,
 }
 
 impl std::io::Write for RustWriter {
@@ -61,7 +67,7 @@ impl std::io::Seek for RustWriter {
 #[repr(C)]
 pub struct ImageEncoder {
     pub user_data: *mut c_void,
-    pub writeFn: fn(
+    pub writeFn: extern "C" fn(
         ud: *mut c_void,
         buf: *const u8,
         size: usize,
@@ -219,43 +225,43 @@ fn get_image_error(er: ImageError) -> ErrorType {
 
 #[repr(C)]
 pub enum FilterType {
-    FILTER_TYPE_NEAREST = image::imageops::FilterType::Nearest as isize,
-    FILTER_TYPE_TRIANGLE = image::imageops::FilterType::Triangle as isize,
-    FILTER_TYPE_CATMULL_ROM = image::imageops::FilterType::CatmullRom as isize,
-    FILTER_TYPE_GAUSSIAN = image::imageops::FilterType::Gaussian as isize,
-    FILTER_TYPE_LANCZOS3 = image::imageops::FilterType::Lanczos3 as isize,
+    FILTER_TYPE_NEAREST,
+    FILTER_TYPE_TRIANGLE,
+    FILTER_TYPE_CATMULL_ROM,
+    FILTER_TYPE_GAUSSIAN,
+    FILTER_TYPE_LANCZOS3,
 }
 
 #[repr(C)]
 pub enum ImageFormat {
-    IMAGE_FORMAT_PNG = image::ImageFormat::Png as isize,
-    IMAGE_FORMAT_JPEG = image::ImageFormat::Jpeg as isize,
-    IMAGE_FORMAT_GIF = image::ImageFormat::Gif as isize,
-    IMAGE_FORMAT_WEBP = image::ImageFormat::WebP as isize,
-    IMAGE_FORMAT_PNM = image::ImageFormat::Pnm as isize,
-    IMAGE_FORMAT_TIFF = image::ImageFormat::Tiff as isize,
-    IMAGE_FORMAT_TGA = image::ImageFormat::Tga as isize,
-    IMAGE_FORMAT_DDS = image::ImageFormat::Dds as isize,
-    IMAGE_FORMAT_BMP = image::ImageFormat::Bmp as isize,
-    IMAGE_FORMAT_ICO = image::ImageFormat::Ico as isize,
-    IMAGE_FORMAT_HDR = image::ImageFormat::Hdr as isize,
-    IMAGE_FORMAT_OPENEXR = image::ImageFormat::OpenExr as isize,
-    IMAGE_FORMAT_FARBFELD = image::ImageFormat::Farbfeld as isize,
-    IMAGE_FORMAT_AVIF = image::ImageFormat::Avif as isize,
-    IMAGE_FORMAT_QOI = image::ImageFormat::Qoi as isize,
+    IMAGE_FORMAT_PNG,
+    IMAGE_FORMAT_JPEG,
+    IMAGE_FORMAT_GIF,
+    IMAGE_FORMAT_WEBP,
+    IMAGE_FORMAT_PNM,
+    IMAGE_FORMAT_TIFF,
+    IMAGE_FORMAT_TGA,
+    IMAGE_FORMAT_DDS,
+    IMAGE_FORMAT_BMP,
+    IMAGE_FORMAT_ICO,
+    IMAGE_FORMAT_HDR,
+    IMAGE_FORMAT_OPENEXR,
+    IMAGE_FORMAT_FARBFELD,
+    IMAGE_FORMAT_AVIF,
+    IMAGE_FORMAT_QOI,
 }
 #[repr(C)]
 pub enum ColorType {
-    COLOR_TYPE_L8 = image::ColorType::L8 as isize,
-    COLOR_TYPE_LA8 = image::ColorType::La8 as isize,
-    COLOR_TYPE_RGB8 = image::ColorType::Rgb8 as isize,
-    COLOR_TYPE_RGBA8 = image::ColorType::Rgba8 as isize,
-    COLOR_TYPE_L16 = image::ColorType::L16 as isize,
-    COLOR_TYPE_LA16 = image::ColorType::La16 as isize,
-    COLOR_TYPE_RGB16 = image::ColorType::Rgb16 as isize,
-    COLOR_TYPE_RGBA16 = image::ColorType::Rgba16 as isize,
-    COLOR_TYPE_RGB32F = image::ColorType::Rgb32F as isize,
-    COLOR_TYPE_RGBA32F = image::ColorType::Rgba32F as isize,
+    COLOR_TYPE_L8,
+    COLOR_TYPE_LA8,
+    COLOR_TYPE_RGB8,
+    COLOR_TYPE_RGBA8,
+    COLOR_TYPE_L16,
+    COLOR_TYPE_LA16,
+    COLOR_TYPE_RGB16,
+    COLOR_TYPE_RGBA16,
+    COLOR_TYPE_RGB32F,
+    COLOR_TYPE_RGBA32F,
 }
 
 #[repr(C)]
@@ -369,8 +375,8 @@ pub extern "C" fn dynamic_image_load_from_memory(
     }
 }
 
-#[no_mangle]
-pub extern "C" fn dynamic_image_from_decoder() {}
+//#[no_mangle]
+//pub extern "C" fn dynamic_image_from_decoder() {}
 
 #[no_mangle]
 pub extern "C" fn dynamic_image_adjust_contrast(
@@ -572,53 +578,53 @@ pub extern "C" fn dynamic_image_thumbnail_exact(
 
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_luma16(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_luma16()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_luma16()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_luma8(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_luma8()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_luma8()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_luma_alpha16(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_luma_alpha16()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_luma_alpha16()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_luma_alpha8(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_luma_alpha8()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_luma_alpha8()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_rgb16(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_rgb16()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_rgb16()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_rgb32f(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_rgb32f()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_rgb32f()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_rgb8(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_rgb8()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_rgb8()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_rgba16(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_rgba16()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_rgba16()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_rgba32f(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_rgba32f()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_rgba32f()) })
 }
 #[no_mangle]
 pub extern "C" fn dynamic_image_into_rgba8(this: *mut DynamicImage) -> *mut DynamicImage {
-    //ravel!({ image::DynamicImage::from(unravel!(this).into_rgba8()) })
-    unimplemented!();
+    let th = unravel!(this).to_owned();
+    ravel!({ image::DynamicImage::from(th.into_rgba8()) })
 }
 
 #[no_mangle]
@@ -683,11 +689,30 @@ pub extern "C" fn dynamic_image_in_bounds(this: *mut DynamicImage, x: u32, y: u3
 }
 
 #[no_mangle]
+pub extern "C" fn dynamic_image_pixels(this: *mut DynamicImage) -> RawIterator {
+    make_raw_iterator(unravel!(this).pixels())
+}
+
+#[no_mangle]
 pub extern "C" fn dynamic_image_free(this: *mut DynamicImage) {
-    let og = unsafe { Box::from_raw(this) };
-    if og.inner != std::ptr::null_mut() {
-        std::mem::drop(unsafe { Box::from_raw(og.inner) });
+    if !this.is_null() {
+        let og = unsafe { Box::from_raw(this) };
+        if og.inner != std::ptr::null_mut() {
+            std::mem::drop(unsafe { Box::from_raw(og.inner) });
+        }
+        std::mem::drop(og);
+        // otherwise, do nothing. the value doesn't exist.
     }
-    std::mem::drop(og);
-    // otherwise, do nothing. the value doesn't exist.
+}
+
+#[repr(C)]
+pub struct PixelResult {
+    pub x: u32,
+    pub y: u32,
+    pub color: Rgba,
+}
+
+#[no_mangle]
+pub extern "C" fn ____() -> PixelResult {
+    unimplemented!()
 }
