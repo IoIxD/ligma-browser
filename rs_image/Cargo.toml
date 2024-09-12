@@ -1,11 +1,14 @@
 [package]
-name = "rs_image"
+name = "rs_image_internal"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-image = "0.25.2"
+image = {version = "0.25.2"}
 thin_trait_object = "1.1.2"
+
+[features]
+avif = ["image/avif-native"]
 
 [build-dependencies]
 cbindgen = "0.27.0"

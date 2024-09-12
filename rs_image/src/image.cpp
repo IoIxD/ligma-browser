@@ -45,7 +45,7 @@ bool DynamicImage::in_bounds(uint32_t x, uint32_t y) {
   return internal::dynamic_image_in_bounds(this->img, x, y);
 };
 
-Iterator<PixelResult> DynamicImage::pixels() {
+Iterator<PixelResult*> DynamicImage::pixels() {
   return new internal::RawIterator(internal::dynamic_image_pixels(this->img));
 }
 

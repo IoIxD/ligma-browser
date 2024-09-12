@@ -3,12 +3,11 @@
 #include <cstdlib>
 #include <exception>
 #include <functional>
-#include <vector>
 
 namespace rs_image {
 namespace internal {
-using std::abs;
 extern "C" {
+using std::abs;
 #include "rs_image.h"
 }
 }  // namespace internal
@@ -28,36 +27,36 @@ class image_error : public std::exception {
   const char* what() const noexcept override;
 };
 
-template <typename T>
+template <class T>
 class Iterator {
   internal::RawIterator* inner;
 
  public:
-  Iterator(internal::RawIterator* inner) : inner() {};
+  Iterator(internal::RawIterator* inner) : inner(inner) {};
 
   SizeHint size_hint();
   uintptr_t count();
   Iterator step_by(uintptr_t step);
   Iterator chain(Iterator other);
   Iterator zip(Iterator other);
-  Iterator map(std::function<void(T)>);
-  void for_each(std::function<void(T)>);
-  Iterator filter(std::function<bool(T)>);
-  Iterator filter_map(std::function<Iterator*(T)>);
+  Iterator map(void (*)(T));
+  void for_each(void (*)(T));
+  Iterator filter(bool (*)(T));
+  Iterator filter_map(Iterator* (*)(T));
   Iterator enumerate();
   Iterator peekable();
-  Iterator skip_while(std::function<bool(T)>);
-  Iterator take_while(std::function<bool(T)>);
-  Iterator map_while(std::function<Iterator*(T)>);
+  Iterator skip_while(bool (*)(T));
+  Iterator take_while(bool (*)(T));
+  Iterator map_while(Iterator* (*)(T));
   Iterator skip(uintptr_t n);
   Iterator take(uintptr_t n);
-  Iterator scan(void* initial_state, std::function<void*(void*, T)>);
-  Iterator flat_map(std::function<Iterator(T)>);
+  Iterator scan(void* initial_state, void* (*)(void*, T));
+  Iterator flat_map(Iterator (*)(T));
   Iterator fuse();
-  Iterator inspect(std::function<void(T)>);
+  Iterator inspect(void (*)(T));
   Iterator by_ref();
-  bool all(std::function<bool(T)>);
-  bool any(std::function<bool(T)>);
+  bool all(bool (*)(T));
+  bool any(bool (*)(T));
   Ordering cmp(Iterator other);
   bool eq(Iterator other);
   bool ne(Iterator other);
@@ -68,20 +67,20 @@ class Iterator {
   T next();
   T last();
   T nth(uintptr_t n);
-  T fold(T init, std::function<T(T, T)>);
-  T reduce(std::function<T(T, T)>);
-  T find(std::function<bool(T*)>);
-  T find_map(std::function<T(T)>);
-  size_t* position(std::function<bool(T*)>);
+  T fold(T init, T (*)(T, T));
+  T reduce(T (*)(T, T));
+  T find(bool (*)(T*));
+  T find_map(T (*)(T));
+  size_t* position(bool (*)(T*));
   T max();
   T min();
   Ordering* partial_cmp(Iterator* other);
   std::vector<T> collect();
 
-  /*T* max_by_key(std::function<void*(void*)>);
-  T* max_by(std::function<Ordering(void*, void*)>);
-  T* min_by_key(std::function<void*(void*)>);
-  T* min_by(std::function<Ordering(void*, void*)>);*/
+  /*T* max_by_key(void* (*)(void*));
+  T* max_by(Ordering (*)(void*, void*));
+  T* min_by_key(void* (*)(void*));
+  T* min_by(Ordering (*)(void*, void*));*/
 };
 
 class DynamicImage {
@@ -121,7 +120,185 @@ class DynamicImage {
   Dimensions get_dimensions();
   Rgba get_pixel(uint32_t x, uint32_t y);
   bool in_bounds(uint32_t x, uint32_t y);
-  Iterator<PixelResult> pixels();
+  Iterator<PixelResult*> pixels();
 };
+
+// Thank you C++ gods for appearently making it so C++ templates need to be
+// defined in the header- why the fuck am I even using them anyways?
+#ifndef __ITERATOR_IMPLEMENTED
+#define __ITERATOR_IMPLEMENTED
+template <class T>
+SizeHint Iterator<T>::size_hint() {
+  return *(SizeHint*)internal::iter_size_hint(this->inner);
+}
+template <class T>
+uintptr_t Iterator<T>::count() {
+  return *(uintptr_t*)internal::iter_count(this->inner);
+}
+template <class T>
+Iterator<T> Iterator<T>::step_by(uintptr_t step) {
+  return *(Iterator<T>*)internal::iter_step_by(this->inner, step);
+}
+template <class T>
+Iterator<T> Iterator<T>::chain(Iterator other) {
+  return *(Iterator<T>*)internal::iter_chain(this->inner, other);
+}
+template <class T>
+Iterator<T> Iterator<T>::zip(Iterator other) {
+  return *(Iterator<T>*)internal::iter_zip(this->inner, other);
+}
+template <class T>
+Iterator<T> Iterator<T>::map(void (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_map(this->inner, f);
+}
+
+template <class T>
+void Iterator<T>::for_each(void (*f)(T)) {
+  return internal::iter_for_each(this->inner, f);
+}
+
+template <class T>
+Iterator<T> Iterator<T>::filter(bool (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_filter(this->inner, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::filter_map(Iterator* (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_filter_map(this->inner, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::enumerate() {
+  return *(Iterator<T>*)internal::iter_enumerate(this->inner);
+}
+template <class T>
+Iterator<T> Iterator<T>::peekable() {
+  return *(Iterator<T>*)internal::iter_peekable(this->inner);
+}
+template <class T>
+Iterator<T> Iterator<T>::skip_while(bool (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_skip_while(this->inner, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::take_while(bool (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_take_while(this->inner, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::map_while(Iterator* (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_map_while(this->inner, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::skip(uintptr_t n) {
+  return *(Iterator<T>*)internal::iter_skip(this->inner, n);
+}
+template <class T>
+Iterator<T> Iterator<T>::take(uintptr_t n) {
+  return *(Iterator<T>*)internal::iter_take(this->inner, n);
+}
+template <class T>
+Iterator<T> Iterator<T>::scan(void* initial_state, void* (*f)(void*, T)) {
+  return *(Iterator<T>*)internal::iter_scan(this->inner, initial_state, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::flat_map(Iterator (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_flat_map(this->inner, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::fuse() {
+  return *(Iterator<T>*)internal::iter_fuse(this->inner);
+}
+template <class T>
+Iterator<T> Iterator<T>::inspect(void (*f)(T)) {
+  return *(Iterator<T>*)internal::iter_inspect(this->inner, f);
+}
+template <class T>
+Iterator<T> Iterator<T>::by_ref() {
+  return *(Iterator<T>*)internal::iter_by_ref(this->inner);
+}
+template <class T>
+bool Iterator<T>::all(bool (*f)(T)) {
+  return internal::iter_all(this->inner, f);
+}
+template <class T>
+bool Iterator<T>::any(bool (*f)(T)) {
+  return internal::iter_any(this->inner, f);
+}
+template <class T>
+Ordering Iterator<T>::cmp(Iterator other) {
+  return internal::iter_cmp(this->inner, other);
+}
+template <class T>
+bool Iterator<T>::eq(Iterator other) {
+  return *(Iterator<T>*)internal::iter_eq(this->inner, other);
+}
+template <class T>
+bool Iterator<T>::ne(Iterator other) {
+  return *(Iterator<T>*)internal::iter_ne(this->inner, other);
+}
+template <class T>
+bool Iterator<T>::lt(Iterator other) {
+  return *(Iterator<T>*)internal::iter_lt(this->inner, other);
+}
+template <class T>
+bool Iterator<T>::le(Iterator other) {
+  return *(Iterator<T>*)internal::iter_le(this->inner, other);
+}
+template <class T>
+bool Iterator<T>::gt(Iterator other) {
+  return *(Iterator<T>*)internal::iter_gt(this->inner, other);
+}
+template <class T>
+bool Iterator<T>::ge(Iterator other) {
+  return *(Iterator<T>*)internal::iter_ge(this->inner, other);
+}
+template <class T>
+T Iterator<T>::next() {
+  return *(T*)internal::iter_next(this->inner);
+}
+template <class T>
+T Iterator<T>::last() {
+  return *(T*)internal::iter_last(this->inner);
+}
+template <class T>
+T Iterator<T>::nth(uintptr_t n) {
+  return *(T*)internal::iter_nth(this->inner, n);
+}
+template <class T>
+T Iterator<T>::fold(T init, T (*f)(T, T)) {
+  return *(T*)internal::iter_fold(this->inner, init, f);
+}
+template <class T>
+T Iterator<T>::reduce(T (*f)(T, T)) {
+  return *(T*)internal::iter_reduce(this->inner, f);
+}
+template <class T>
+T Iterator<T>::find(bool (*f)(T*)) {
+  return *(T*)internal::iter_find(this->inner, f);
+}
+template <class T>
+T Iterator<T>::find_map(T (*f)(T)) {
+  return *(T*)internal::iter_find_map(this->inner, f);
+}
+template <class T>
+size_t* Iterator<T>::position(bool (*f)(T*)) {
+  return *(size_t*)internal::iter_position(this->inner, f);
+}
+template <class T>
+T Iterator<T>::max() {
+  return *(T*)internal::iter_max(this->inner);
+}
+template <class T>
+T Iterator<T>::min() {
+  return *(T*)internal::iter_min(this->inner);
+}
+template <class T>
+Ordering* Iterator<T>::partial_cmp(Iterator* other) {
+  return internal::iter_partial_cmp(this->inner, other);
+}
+template <class T>
+std::vector<T> Iterator<T>::collect() {
+  uintptr_t size;
+  auto bytes = internal::iter_collect(this->inner, &size);
+  return std::vector(bytes, bytes + size);
+}
+#endif
 
 }  // namespace rs_image

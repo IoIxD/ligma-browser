@@ -129,7 +129,7 @@ FetchContent_MakeAvailable(rs_systemtime)
 include_directories(${RS_SYSTEMTIME_INCLUDE_DIRECTORY})
 
 add_subdirectory("rs_image")
-include_directories("rs_image/include")
+include_directories(${RS_IMAGE_INCLUDE_DIRECTORY})
 
 target_link_libraries(${PROJECT_NAME} raylib rs_image rs_systemtime)
 

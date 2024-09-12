@@ -71,11 +71,11 @@ impl Iterator for RawIterator {
 }
 
 fn to_inner<'a>(s: *mut RawIterator) -> &'a RawIterator {
-    unsafe { s.as_ref().unwrap() }
+    unsafe { s.as_ref().expect("iterator is null!") }
 }
 
 fn to_inner_mut<'a>(s: *mut RawIterator) -> &'a mut RawIterator {
-    unsafe { s.as_mut().unwrap() }
+    unsafe { s.as_mut().expect("iterator is null!") }
 }
 #[no_mangle]
 extern "C" fn iter_next(s: *mut RawIterator) -> *mut c_void {

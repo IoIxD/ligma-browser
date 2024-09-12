@@ -17,9 +17,9 @@ fn workspace_dir() -> PathBuf {
 fn main() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
-    let package_name = env::var("CARGO_PKG_NAME").unwrap();
     let output_file = workspace_dir()
-        .join(format!("include/{}.h", package_name))
+        .join("include")
+        .join("rs_image.h")
         .display()
         .to_string();
 

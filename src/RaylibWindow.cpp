@@ -471,12 +471,12 @@ Model* TabInfo::GetIcon() {
 
       auto pixels = img.pixels();
 
-      pixels.for_each([&im](PixelResult pixel) {
-        std::println(std::cout, "({} {})", pixel.x, pixel.y);
-        auto color = pixel.color;
-        ImageDrawPixel(&im, pixel.x, pixel.y,
+      for (auto pixel = pixels.next(); pixel != NULL; pixel = pixels.next()) {
+        std::println(std::cout, "({} {})", pixel->x, pixel->y);
+        auto color = pixel->color;
+        ImageDrawPixel(&im, pixel->x, pixel->y,
                        (Color){color.r, color.g, color.b, color.a});
-      });
+      }
 
       auto t = LoadTextureFromImage(im);
       this->texture = t;
